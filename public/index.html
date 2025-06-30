@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskFlow - Система управления задачами</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Модальное окно авторизации -->
+    <div id="authModal" class="modal show">
+        <div class="modal-content">
+            <div class="auth-container">
+                <div class="auth-header">
+                    <i class="fas fa-tasks"></i>
+                    <h2>Вход в TaskFlow</h2>
+                </div>
+                <form id="authForm">
+                    <div class="form-group has-icon">
+                        <input type="text" id="username" placeholder="Имя пользователя" required>
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="form-group has-icon">
+                        <input type="password" id="password" placeholder="Пароль" required>
+                        <i class="fas fa-lock"></i>
+                    </div>
+                    <button type="submit" id="authButton" class="btn btn-primary">
+                        <span id="authButtonText">Войти</span>
+                        <div id="authLoader" class="loader" style="display: none;"></div>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Основное приложение -->
+    <div id="app" class="d-none">
+        <!-- Навигация -->
+        <nav class="navbar">
+            <div class="nav-brand">
+                <i class="fas fa-tasks"></i>
+                <h1>TaskFlow</h1>
+            </div>
+            <div class="nav-menu">
+                <button class="nav-btn active" data-section="projects">
+                    <i class="fas fa-project-diagram"></i>
+                    <span>Проекты</span>
+                </button>
+                <button class="nav-btn" data-section="board">
+                    <i class="fas fa-columns"></i>
+                    <span>Канбан</span>
+                </button>
+                <button class="nav-btn" data-section="colleagues">
+                    <i class="fas fa-users"></i>
+                    <span>Коллеги</span>
+                </button>
+                <a href="/admin" class="nav-btn" id="adminLink" style="display: none;">
+                    <i class="fas fa-cog"></i>
+                    <span>Админка</span>
+                </a>
+            </div>
+            <div class="nav-user">
+                <span id="currentUser"></span>
+                <span id="currentRole" class="role-badge"></span>
+                <button id="logoutBtn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Выход</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Секция проектов -->
+        <section id="projectsSection" class="content-section">
+            <div class="section-header">
+                <h2>Управление проектами</h2>
+                <button id="addProjectBtn" class="btn btn-primary" style="display: none;">
+                    <i class="fas fa-plus"></i>
+                    Новый проект
+                </button>
+            </div>
+            <div id="projectsList" class="projects-grid">
+                <div class="loading">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Секция канбан-доски -->
+        <section id="boardSection" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2>Канбан доска</h2>
+                <div class="board-controls">
+                    <select id="projectFilter">
+                        <option value="">Все проекты</option>
+                    </select>
+                    <button id="addTaskBtn" class="btn btn-primary" style="display: none;">
+                        <i class="fas fa-plus"></i>
+                        Новая задача
+                    </button>
+                    <button id="viewArchivedBtn" class="btn btn-secondary">
+                        <i class="fas fa-archive"></i>
+                        Архив
+                    </button>
+                </div>
+            </div>
+            <div class="kanban-board">
+                <div class="kanban-column" data-status="unassigned">
+                    <div class="column-header">
+                        <h3><i class="fas fa-inbox"></i> Неразобранные</h3>
+                        <span class="task-count">0</span>
+                    </div>
+                    <div class="column-content" id="unassigned-tasks"></div>
+                </div>
+                <div class="kanban-column" data-status="in_progress">
+                    <div class="column-header">
+                        <h3><i class="fas fa-play"></i> В работе</h3>
+                        <span class="task-count">0</span>
+                    </div>
+                    <div class="column-content" id="in_progress-tasks"></div>
+                </div>
+                <div class="kanban-column" data-status="developed">
+                    <div class="column-header">
+                        <h3><i class="fas fa-code"></i> Разработано</h3>
+                        <span class="task-count">0</span>
+                    </div>
+                    <div class="column-content" id="developed-tasks"></div>
+                </div>
+                <div class="kanban-column" data-status="review">
+                    <div class="column-header">
+                        <h3><i class="fas fa-search"></i> На проверке</h3>
+                        <span class="task-count">0</span>
+                    </div>
+                    <div class="column-content" id="review-tasks"></div>
+                </div>
+                <div class="kanban-column" data-status="deploy">
+                    <div class="column-header">
+                        <h3><i class="fas fa-upload"></i> На заливе</h3>
+                        <span class="task-count">0</span>
+                    </div>
+                    <div class="column-content" id="deploy-tasks"></div>
+                </div>
+                <div class="kanban-column" data-status="done">
+                    <div class="column-header">
+                        <h3><i class="fas fa-check"></i> Готово</h3>
+                        <span class="task-count">0</span>
+                    </div>
+                    <div class="column-content" id="done-tasks"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Секция коллег -->
+        <section id="colleaguesSection" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2>Список коллег</h2>
+                <div class="colleagues-controls">
+                    <input type="text" id="searchColleagues" placeholder="Поиск по имени или роли" class="search-input">
+                    <select id="roleFilter">
+                        <option value="">Все роли</option>
+                        <option value="admin">Администраторы</option>
+                        <option value="manager">Менеджеры</option>
+                        <option value="worker">Исполнители</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="colleaguesList" class="colleagues-grid">
+                <div class="loading">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+
+            <!-- Проекты оверлиф -->
+            <div class="section-header mt-3">
+                <h2>Проекты Overkill</h2>
+                <button id="addOverkillProjectBtn" class="btn btn-primary">
+                    <i class="fas fa-plus"></i>
+                    Добавить проект
+                </button>
+            </div>
+
+            <div class="overkill-projects-table-container">
+                <table class="overkill-projects-table">
+                    <thead>
+                        <tr>
+                            <th>Проект</th>
+                            <th>Описание</th>
+                            <th>Создатель</th>
+                            <th>Ссылка</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="overkillProjectsTableBody">
+                        <tr>
+                            <td colspan="5" class="loading-cell">
+                                <div class="spinner"></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <!-- Модальные окна -->
+    <div id="projectModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-project-diagram"></i> Создать проект</h3>
+                <button class="close">&times;</button>
+            </div>
+            <form id="projectForm">
+                <div class="form-group">
+                    <label>Название проекта *</label>
+                    <input type="text" id="projectName" placeholder="Введите название проекта" required>
+                </div>
+                <div class="form-group">
+                    <label>Описание</label>
+                    <textarea id="projectDescription" rows="4" placeholder="Опишите проект..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('projectModal')">
+                        <i class="fas fa-times"></i> Отмена
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Создать
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="overkillProjectModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-external-link-alt"></i> Добавить проект Overkill</h3>
+                <button class="close">&times;</button>
+            </div>
+            <form id="overkillProjectForm">
+                <div class="form-group">
+                    <label>Название проекта *</label>
+                    <input type="text" id="overkillProjectName" placeholder="Введите название проекта" required>
+                </div>
+                <div class="form-group">
+                    <label>Описание</label>
+                    <textarea id="overkillProjectDescription" rows="4" placeholder="Опишите проект..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Ссылка на проект *</label>
+                    <input type="url" id="overkillProjectLink" placeholder="https://example.com/project" required>
+                    <small style="color: #666; font-size: 12px;">Кликабельная ссылка на внешний ресурс проекта</small>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('overkillProjectModal')">
+                        <i class="fas fa-times"></i> Отмена
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Добавить
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="taskModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-tasks"></i> Создать задачу</h3>
+                <button class="close">&times;</button>
+            </div>
+            <form id="taskForm">
+                <div class="form-group">
+                    <label>Название задачи *</label>
+                    <input type="text" id="taskTitle" placeholder="Введите название задачи" required>
+                </div>
+                <div class="form-group">
+                    <label>Цель задачи</label>
+                    <input type="text" id="taskGoal" placeholder="Что должно получиться на выходе?">
+                </div>
+                <div class="form-group">
+                    <label>Описание</label>
+                    <textarea id="taskDescription" rows="4" placeholder="Подробное описание задачи..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Связанный проект</label>
+                    <select id="taskProject">
+                        <option value="">Выберите проект (опционально)</option>
+                    </select>
+                    <small style="color: #666; font-size: 12px;">Выберите из созданных проектов</small>
+                </div>
+                <div class="form-group">
+                    <label>Проект Overkill</label>
+                    <select id="taskOverkillProject">
+                        <option value="">Выберите проект Overkill (опционально)</option>
+                    </select>
+                    <small style="color: #666; font-size: 12px;">Проекты с внешними ссылками</small>
+                </div>
+                <div class="form-group">
+                    <label>Или укажите отдельную ссылку</label>
+                    <input type="url" id="taskProjectLink" placeholder="https://example.com/task-resource">
+                    <small style="color: #666; font-size: 12px;">Ссылка не связанная с проектами выше</small>
+                </div>
+                <div class="form-group">
+                    <label>Дедлайн *</label>
+                    <input type="datetime-local" id="taskDeadline" required>
+                </div>
+                <div class="form-group">
+                    <label>Приоритет</label>
+                    <select id="taskPriority">
+                        <option value="low">🟢 Низкий</option>
+                        <option value="medium" selected>🟡 Средний</option>
+                        <option value="high">🔴 Высокий</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Исполнители</label>
+                    <div id="assigneesList">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('taskModal')">
+                        <i class="fas fa-times"></i> Отмена
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Создать
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно управления участниками задачи -->
+    <div id="taskAssigneesModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-users"></i> Управление участниками</h3>
+                <button class="close">&times;</button>
+            </div>
+            <div style="padding: 30px;">
+                <div class="form-group">
+                    <label>Задача</label>
+                    <div id="taskAssigneesTitle" class="task-title-display"></div>
+                </div>
+                <div class="form-group">
+                    <label>Текущие участники</label>
+                    <div id="currentAssigneesList" class="current-assignees-list"></div>
+                </div>
+                <div class="form-group">
+                    <label>Добавить участников</label>
+                    <div id="availableAssigneesList" class="available-assignees-list"></div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('taskAssigneesModal')">
+                        <i class="fas fa-times"></i> Отмена
+                    </button>
+                    <button type="button" class="btn btn-primary" id="saveTaskAssignees">
+                        <i class="fas fa-save"></i> Сохранить
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно комментариев к задаче -->
+    <div id="taskCommentsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-comments"></i> Комментарии</h3>
+                <button class="close">&times;</button>
+            </div>
+            <div style="padding: 30px;">
+                <div class="form-group">
+                    <label>Задача</label>
+                    <div id="taskCommentsTitle" class="task-title-display"></div>
+                </div>
+                <div class="form-group">
+                    <label>Комментарии</label>
+                    <div id="taskCommentsList" class="task-comments-list"></div>
+                </div>
+                <div class="form-group">
+                    <label>Добавить комментарий</label>
+                    <textarea id="newTaskComment" rows="3" placeholder="Введите ваш комментарий..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('taskCommentsModal')">
+                        <i class="fas fa-times"></i> Закрыть
+                    </button>
+                    <button type="button" class="btn btn-primary" id="addTaskComment">
+                        <i class="fas fa-plus"></i> Добавить комментарий
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно архива -->
+    <div id="archiveModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-archive"></i> Архивированные задачи</h3>
+                <button class="close">&times;</button>
+            </div>
+            <div style="padding: 30px;">
+                <div id="archivedTasksList" class="archived-tasks-list">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Скрипты -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

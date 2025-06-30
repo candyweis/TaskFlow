@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskFlow - Список коллег</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Модальное окно авторизации -->
+    <div id="authModal" class="modal show">
+        <div class="modal-content">
+            <div class="auth-container">
+                <div class="auth-header">
+                    <i class="fas fa-users"></i>
+                    <h2 id="authTitle">Войти для просмотра коллег</h2>
+                </div>
+                <form id="authForm">
+                    <div class="form-group has-icon">
+                        <input type="text" id="username" placeholder="Имя пользователя" required>
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="form-group has-icon">
+                        <input type="password" id="password" placeholder="Пароль" required>
+                        <i class="fas fa-lock"></i>
+                    </div>
+                    <button type="submit" id="authButton" class="btn btn-primary">
+                        <span id="authButtonText">Войти</span>
+                        <div id="authLoader" class="loader" style="display: none;"></div>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Основное приложение -->
+    <div id="app" class="d-none">
+        <!-- Навигация -->
+        <nav class="navbar">
+            <div class="nav-brand">
+                <i class="fas fa-users"></i>
+                <h1>Коллеги</h1>
+            </div>
+            <div class="nav-menu">
+                <a href="/" class="nav-btn">
+                    <i class="fas fa-home"></i>
+                    <span>Главная</span>
+                </a>
+                <a href="/admin" class="nav-btn" id="adminLink" style="display: none;">
+                    <i class="fas fa-cog"></i>
+                    <span>Админка</span>
+                </a>
+            </div>
+            <div class="nav-user">
+                <span id="currentUser"></span>
+                <span id="currentRole" class="role-badge"></span>
+                <button id="logoutBtn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Выход</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Секция коллег -->
+        <section class="content-section">
+            <div class="section-header">
+                <h2>Список коллег</h2>
+                <div class="colleagues-controls">
+                    <input type="text" id="searchColleagues" placeholder="Поиск по имени или роли" class="search-input">
+                    <select id="roleFilter">
+                        <option value="">Все роли</option>
+                        <option value="admin">Администраторы</option>
+                        <option value="manager">Менеджеры</option>
+                        <option value="worker">Исполнители</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="colleaguesList" class="colleagues-grid">
+                <div class="loading">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Секция проектов -->
+        <section class="content-section">
+            <div class="section-header">
+                <h2>Сводная таблица проектов</h2>
+                <button id="exportProjectsBtn" class="btn btn-secondary">
+                    <i class="fas fa-download"></i>
+                    Экспорт
+                </button>
+            </div>
+
+            <div class="projects-table-container">
+                <table class="projects-summary-table">
+                    <thead>
+                        <tr>
+                            <th>Проект</th>
+                            <th>Описание</th>
+                            <th>Создатель</th>
+                            <th>Задач</th>
+                            <th>Выполнено</th>
+                            <th>Прогресс</th>
+                            <th>Ссылки</th>
+                        </tr>
+                    </thead>
+                    <tbody id="projectsTableBody">
+                        <tr>
+                            <td colspan="7" class="loading-cell">
+                                <div class="spinner"></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
+    <script src="js/colleagues.js"></script>
+</body>
+</html>

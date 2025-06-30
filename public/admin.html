@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskFlow - Панель администратора</title>
+    <link rel="stylesheet" href="css/admin.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Авторизация для админки -->
+    <div id="adminAuthModal" class="modal">
+        <div class="modal-content">
+            <div class="auth-container">
+                <div class="auth-header">
+                    <i class="fas fa-shield-alt"></i>
+                    <h2>Вход в админ-панель</h2>
+                </div>
+                <form id="adminAuthForm">
+                    <div class="form-group">
+                        <input type="text" id="adminUsername" placeholder="Логин администратора" required>
+                        <i class="fas fa-user-shield"></i>
+                    </div>
+                    <div class="form-group">
+                        <input type="password" id="adminPassword" placeholder="Пароль" required>
+                        <i class="fas fa-lock"></i>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-sign-in-alt"></i>
+                        Войти в админку
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Админ-панель -->
+    <div id="adminPanel" style="display: none;">
+        <!-- Сайдбар -->
+        <div class="admin-sidebar">
+            <div class="sidebar-header">
+                <i class="fas fa-shield-alt"></i>
+                <h2>Admin Panel</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-link active" data-section="dashboard">
+                    <i class="fas fa-tachometer-alt"></i>
+                    Дашборд
+                </a>
+                <a href="#" class="nav-link" data-section="users">
+                    <i class="fas fa-users"></i>
+                    Пользователи
+                </a>
+                <a href="#" class="nav-link" data-section="projects">
+                    <i class="fas fa-project-diagram"></i>
+                    Проекты
+                </a>
+                <a href="#" class="nav-link" data-section="settings">
+                    <i class="fas fa-cog"></i>
+                    Настройки
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="/" class="btn btn-secondary">
+                    <i class="fas fa-home"></i>
+                    Главная
+                </a>
+                <button id="adminLogout" class="btn btn-secondary">
+                    <i class="fas fa-sign-out-alt"></i>
+                    Выход
+                </button>
+            </div>
+        </div>
+
+        <!-- Основной контент -->
+        <div class="admin-main">
+            <!-- Топбар -->
+            <div class="admin-topbar">
+                <h1 id="sectionTitle">Дашборд</h1>
+                <div class="admin-user">
+                    <span id="adminCurrentUser"></span>
+                    <i class="fas fa-user-circle"></i>
+                </div>
+            </div>
+
+            <!-- Дашборд -->
+            <div id="dashboardSection" class="admin-section">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 id="totalUsers">0</h3>
+                            <p>Активных пользователей</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-project-diagram"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 id="totalProjects">0</h3>
+                            <p>Проектов</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-tasks"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 id="totalTasks">0</h3>
+                            <p>Задач в работе</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <h3 id="completedTasks">0</h3>
+                            <p>Выполнено задач</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Пользователи -->
+            <div id="usersSection" class="admin-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Управление пользователями</h2>
+                    <button id="addUserBtn" class="btn btn-primary">
+                        <i class="fas fa-user-plus"></i>
+                        Добавить пользователя
+                    </button>
+                </div>
+                <div class="users-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Имя пользователя</th>
+                                <th>Роль</th>
+                                <th>Контакты</th>
+                                <th>Права доступа</th>
+                                <th>Статус</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Проекты -->
+            <div id="projectsSection" class="admin-section" style="display: none;">
+                <div class="section-header">
+                    <h2>Управление проектами</h2>
+                </div>
+                <div id="adminProjectsList" class="projects-list"></div>
+            </div>
+
+            <!-- Настройки -->
+            <div id="settingsSection" class="admin-section" style="display: none;">
+                <div class="settings-container">
+                    <h2>Системные настройки</h2>
+                    <div class="settings-card">
+                        <h3>Безопасность</h3>
+                        <p>Настройки безопасности и доступа</p>
+                    </div>
+                    <div class="settings-card">
+                        <h3>Уведомления</h3>
+                        <p>Настройки уведомлений системы</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно создания/редактирования пользователя -->
+    <div id="userModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="userModalTitle">Добавить пользователя</h3>
+                <button class="close">&times;</button>
+            </div>
+            <form id="userForm">
+                <div class="form-group">
+                    <label>Имя пользователя</label>
+                    <input type="text" id="userUsername" required>
+                </div>
+                <div class="form-group" id="passwordGroup">
+                    <label>Пароль</label>
+                    <input type="password" id="userPassword" required>
+                </div>
+                <div class="form-group">
+                    <label>Роль</label>
+                    <select id="userRole" required>
+                        <option value="worker">Работник</option>
+                        <option value="manager">Менеджер</option>
+                        <option value="admin">Администратор</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Телефон</label>
+                    <input type="tel" id="userPhone" placeholder="+7 (999) 123-45-67">
+                </div>
+                <div class="form-group">
+                    <label>Телеграм</label>
+                    <input type="text" id="userTelegram" placeholder="@username или username">
+                </div>
+                <div class="form-group">
+                    <label>Права доступа</label>
+                    <div class="permissions-grid">
+                        <label class="permission-item">
+                            <input type="checkbox" id="canManageUsers" name="permissions">
+                            <span>Управление пользователями</span>
+                        </label>
+                        <label class="permission-item">
+                            <input type="checkbox" id="canManageProjects" name="permissions">
+                            <span>Управление проектами</span>
+                        </label>
+                        <label class="permission-item">
+                            <input type="checkbox" id="canManageTasks" name="permissions">
+                            <span>Управление задачами</span>
+                        </label>
+                        <label class="permission-item">
+                            <input type="checkbox" id="canDevelop" name="permissions">
+                            <span>Может разрабатывать</span>
+                        </label>
+                        <label class="permission-item">
+                            <input type="checkbox" id="canReview" name="permissions">
+                            <span>Может проверять</span>
+                        </label>
+                        <label class="permission-item">
+                            <input type="checkbox" id="canDeploy" name="permissions">
+                            <span>Может заливать</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('userModal')">Отмена</button>
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/admin.js"></script>
+</body>
+</html>
