@@ -7,3 +7,4 @@ server/*.db
 server/taskflow.db
 node_modules/
 
+ecosystem.config.js
