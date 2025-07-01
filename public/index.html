@@ -14,7 +14,8 @@
             <div class="auth-container">
                 <div class="auth-header">
                     <i class="fas fa-tasks"></i>
-                    <h2>Вход в TaskFlow</h2>
+                    <h2>Добро пожаловать в TaskFlow</h2>
+                    <p>Система управления задачами</p>
                 </div>
                 <form id="authForm">
                     <div class="form-group has-icon">
@@ -49,24 +50,28 @@
                 </button>
                 <button class="nav-btn" data-section="board">
                     <i class="fas fa-columns"></i>
-                    <span>Канбан</span>
+                    <span>Доска задач</span>
                 </button>
                 <button class="nav-btn" data-section="colleagues">
                     <i class="fas fa-users"></i>
                     <span>Коллеги</span>
                 </button>
-                <a href="/admin" class="nav-btn" id="adminLink" style="display: none;">
-                    <i class="fas fa-cog"></i>
-                    <span>Админка</span>
-                </a>
             </div>
             <div class="nav-user">
-                <span id="currentUser"></span>
-                <span id="currentRole" class="role-badge"></span>
-                <button id="logoutBtn">
-                    <i class="fas fa-sign-out-alt"></i>
-                    <span>Выход</span>
-                </button>
+                <div class="user-info">
+                    <span id="currentUser">Пользователь</span>
+                    <span id="currentRole" class="role-badge">Роль</span>
+                </div>
+                <div class="user-actions">
+                    <a href="/admin" id="adminLink" class="btn btn-sm btn-warning" style="display: none;">
+                        <i class="fas fa-shield-alt"></i>
+                        <span>Админка</span>
+                    </a>
+                    <button id="logoutBtn" class="btn btn-sm btn-danger">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>Выход</span>
+                    </button>
+                </div>
             </div>
         </nav>
 
@@ -74,73 +79,78 @@
         <section id="projectsSection" class="content-section">
             <div class="section-header">
                 <h2>Управление проектами</h2>
-                <button id="addProjectBtn" class="btn btn-primary" style="display: none;">
-                    <i class="fas fa-plus"></i>
-                    Новый проект
-                </button>
-            </div>
-            <div id="projectsList" class="projects-grid">
-                <div class="loading">
-                    <div class="spinner"></div>
+                <div class="section-actions">
+                    <button id="addProjectBtn" class="btn btn-primary">
+                        <i class="fas fa-plus"></i>
+                        Добавить проект
+                    </button>
                 </div>
+            </div>
+            <div id="projectsList" class="projects-grid loading">
+                <div class="spinner"></div>
             </div>
         </section>
 
-        <!-- Секция канбан-доски -->
+        <!-- Секция доски задач -->
         <section id="boardSection" class="content-section" style="display: none;">
             <div class="section-header">
-                <h2>Канбан доска</h2>
+                <h2>Доска задач</h2>
                 <div class="board-controls">
-                    <select id="projectFilter">
-                        <option value="">Все проекты</option>
-                    </select>
-                    <button id="addTaskBtn" class="btn btn-primary" style="display: none;">
-                        <i class="fas fa-plus"></i>
-                        Новая задача
-                    </button>
-                    <button id="viewArchivedBtn" class="btn btn-secondary">
-                        <i class="fas fa-archive"></i>
-                        Архив
-                    </button>
+                    <div class="filter-group">
+                        <label>Фильтр по проекту:</label>
+                        <select id="projectFilter">
+                            <option value="">Все проекты</option>
+                        </select>
+                    </div>
+                    <div class="section-actions">
+                        <button id="viewArchivedBtn" class="btn btn-secondary">
+                            <i class="fas fa-archive"></i>
+                            Архив
+                        </button>
+                        <button id="addTaskBtn" class="btn btn-primary">
+                            <i class="fas fa-plus"></i>
+                            Добавить задачу
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="kanban-board">
-                <div class="kanban-column" data-status="unassigned">
+                <div class="kanban-column">
                     <div class="column-header">
                         <h3><i class="fas fa-inbox"></i> Неразобранные</h3>
                         <span class="task-count">0</span>
                     </div>
                     <div class="column-content" id="unassigned-tasks"></div>
                 </div>
-                <div class="kanban-column" data-status="in_progress">
+                <div class="kanban-column">
                     <div class="column-header">
                         <h3><i class="fas fa-play"></i> В работе</h3>
                         <span class="task-count">0</span>
                     </div>
                     <div class="column-content" id="in_progress-tasks"></div>
                 </div>
-                <div class="kanban-column" data-status="developed">
+                <div class="kanban-column">
                     <div class="column-header">
-                        <h3><i class="fas fa-code"></i> Разработано</h3>
+                        <h3><i class="fas fa-code"></i> Техарь</h3>
                         <span class="task-count">0</span>
                     </div>
                     <div class="column-content" id="developed-tasks"></div>
                 </div>
-                <div class="kanban-column" data-status="review">
+                <div class="kanban-column">
                     <div class="column-header">
                         <h3><i class="fas fa-search"></i> На проверке</h3>
                         <span class="task-count">0</span>
                     </div>
                     <div class="column-content" id="review-tasks"></div>
                 </div>
-                <div class="kanban-column" data-status="deploy">
+                <div class="kanban-column">
                     <div class="column-header">
-                        <h3><i class="fas fa-upload"></i> На заливе</h3>
+                        <h3><i class="fas fa-upload"></i> Загружать</h3>
                         <span class="task-count">0</span>
                     </div>
                     <div class="column-content" id="deploy-tasks"></div>
                 </div>
-                <div class="kanban-column" data-status="done">
+                <div class="kanban-column">
                     <div class="column-header">
                         <h3><i class="fas fa-check"></i> Готово</h3>
                         <span class="task-count">0</span>
@@ -153,245 +163,343 @@
         <!-- Секция коллег -->
         <section id="colleaguesSection" class="content-section" style="display: none;">
             <div class="section-header">
-                <h2>Список коллег</h2>
-                <div class="colleagues-controls">
-                    <input type="text" id="searchColleagues" placeholder="Поиск по имени или роли" class="search-input">
+                <h2>Коллеги</h2>
+            </div>
+            
+            <!-- Поиск и фильтры -->
+            <div class="colleagues-filters">
+                <div class="filter-group">
+                    <input type="text" id="searchColleagues" placeholder="Поиск коллег...">
                     <select id="roleFilter">
                         <option value="">Все роли</option>
-                        <option value="admin">Администраторы</option>
-                        <option value="manager">Менеджеры</option>
-                        <option value="worker">Исполнители</option>
+                        <option value="admin">Администратор</option>
+                        <option value="manager">Менеджер</option>
+                        <option value="worker">Исполнитель</option>
                     </select>
                 </div>
             </div>
-
-            <div id="colleaguesList" class="colleagues-grid">
-                <div class="loading">
-                    <div class="spinner"></div>
+            
+            <!-- Список коллег -->
+            <div class="colleagues-container">
+                <div id="colleaguesList" class="colleagues-list">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                    </div>
                 </div>
-            </div>
-
-            <!-- Проекты оверлиф -->
-            <div class="section-header mt-3">
-                <h2>Проекты Overkill</h2>
-                <button id="addOverkillProjectBtn" class="btn btn-primary">
-                    <i class="fas fa-plus"></i>
-                    Добавить проект
-                </button>
-            </div>
-
-            <div class="overkill-projects-table-container">
-                <table class="overkill-projects-table">
-                    <thead>
-                        <tr>
-                            <th>Проект</th>
-                            <th>Описание</th>
-                            <th>Создатель</th>
-                            <th>Ссылка</th>
-                            <th>Действия</th>
-                        </tr>
-                    </thead>
-                    <tbody id="overkillProjectsTableBody">
-                        <tr>
-                            <td colspan="5" class="loading-cell">
-                                <div class="spinner"></div>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
             </div>
         </section>
     </div>
 
-    <!-- Модальные окна -->
+    <!-- Модальное окно проекта -->
     <div id="projectModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3><i class="fas fa-project-diagram"></i> Создать проект</h3>
-                <button class="close">&times;</button>
+                <h3>Добавить проект</h3>
+                <button class="close" data-modal="projectModal">&times;</button>
             </div>
             <form id="projectForm">
-                <div class="form-group">
-                    <label>Название проекта *</label>
-                    <input type="text" id="projectName" placeholder="Введите название проекта" required>
-                </div>
-                <div class="form-group">
-                    <label>Описание</label>
-                    <textarea id="projectDescription" rows="4" placeholder="Опишите проект..."></textarea>
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('projectModal')">
-                        <i class="fas fa-times"></i> Отмена
-                    </button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-plus"></i> Создать
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="overkillProjectModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3><i class="fas fa-external-link-alt"></i> Добавить проект Overkill</h3>
-                <button class="close">&times;</button>
-            </div>
-            <form id="overkillProjectForm">
-                <div class="form-group">
-                    <label>Название проекта *</label>
-                    <input type="text" id="overkillProjectName" placeholder="Введите название проекта" required>
-                </div>
-                <div class="form-group">
-                    <label>Описание</label>
-                    <textarea id="overkillProjectDescription" rows="4" placeholder="Опишите проект..."></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Ссылка на проект *</label>
-                    <input type="url" id="overkillProjectLink" placeholder="https://example.com/project" required>
-                    <small style="color: #666; font-size: 12px;">Кликабельная ссылка на внешний ресурс проекта</small>
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('overkillProjectModal')">
-                        <i class="fas fa-times"></i> Отмена
-                    </button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-plus"></i> Добавить
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <div id="taskModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3><i class="fas fa-tasks"></i> Создать задачу</h3>
-                <button class="close">&times;</button>
-            </div>
-            <form id="taskForm">
-                <div class="form-group">
-                    <label>Название задачи *</label>
-                    <input type="text" id="taskTitle" placeholder="Введите название задачи" required>
-                </div>
-                <div class="form-group">
-                    <label>Цель задачи</label>
-                    <input type="text" id="taskGoal" placeholder="Что должно получиться на выходе?">
-                </div>
-                <div class="form-group">
-                    <label>Описание</label>
-                    <textarea id="taskDescription" rows="4" placeholder="Подробное описание задачи..."></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Связанный проект</label>
-                    <select id="taskProject">
-                        <option value="">Выберите проект (опционально)</option>
-                    </select>
-                    <small style="color: #666; font-size: 12px;">Выберите из созданных проектов</small>
-                </div>
-                <div class="form-group">
-                    <label>Проект Overkill</label>
-                    <select id="taskOverkillProject">
-                        <option value="">Выберите проект Overkill (опционально)</option>
-                    </select>
-                    <small style="color: #666; font-size: 12px;">Проекты с внешними ссылками</small>
-                </div>
-                <div class="form-group">
-                    <label>Или укажите отдельную ссылку</label>
-                    <input type="url" id="taskProjectLink" placeholder="https://example.com/task-resource">
-                    <small style="color: #666; font-size: 12px;">Ссылка не связанная с проектами выше</small>
-                </div>
-                <div class="form-group">
-                    <label>Дедлайн *</label>
-                    <input type="datetime-local" id="taskDeadline" required>
-                </div>
-                <div class="form-group">
-                    <label>Приоритет</label>
-                    <select id="taskPriority">
-                        <option value="low">🟢 Низкий</option>
-                        <option value="medium" selected>🟡 Средний</option>
-                        <option value="high">🔴 Высокий</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Исполнители</label>
-                    <div id="assigneesList">
-                        <div class="loading">
-                            <div class="spinner"></div>
-                        </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Название проекта *</label>
+                        <input type="text" id="projectName" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Описание</label>
+                        <textarea id="projectDescription" rows="3"></textarea>
                     </div>
                 </div>
                 <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('taskModal')">
+                    <button type="button" class="btn btn-secondary" data-close-modal="projectModal">
                         <i class="fas fa-times"></i> Отмена
                     </button>
                     <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-plus"></i> Создать
+                        <i class="fas fa-save"></i> Создать
                     </button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- Модальное окно управления участниками задачи -->
-    <div id="taskAssigneesModal" class="modal">
-        <div class="modal-content">
+    <!-- Модальное окно задачи -->
+    <div id="taskModal" class="modal">
+        <div class="modal-content modal-large">
             <div class="modal-header">
-                <h3><i class="fas fa-users"></i> Управление участниками</h3>
-                <button class="close">&times;</button>
+                <h3>Добавить задачу</h3>
+                <button class="close" data-modal="taskModal">&times;</button>
             </div>
-            <div style="padding: 30px;">
-                <div class="form-group">
-                    <label>Задача</label>
-                    <div id="taskAssigneesTitle" class="task-title-display"></div>
+            <form id="taskForm">
+                <div class="modal-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Название задачи *</label>
+                            <input type="text" id="taskTitle" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Приоритет</label>
+                            <select id="taskPriority">
+                                <option value="low">Низкий</option>
+                                <option value="medium" selected>Средний</option>
+                                <option value="high">Высокий</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Цель задачи</label>
+                        <input type="text" id="taskGoal" placeholder="Краткая цель задачи">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Описание</label>
+                        <textarea id="taskDescription" rows="4"></textarea>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Проект</label>
+                            <select id="taskProject">
+                                <option value="">Выберите проект (опционально)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Проект Overleaf</label>
+                            <select id="taskOverleafProject">
+                                <option value="">Выберите проект Overleaf (опционально)</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Ссылка на ресурс</label>
+                        <input type="url" id="taskProjectLink" placeholder="https://example.com">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Дедлайн *</label>
+                        <input type="datetime-local" id="taskDeadline" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Назначить исполнителей</label>
+                        <div class="assignees-container">
+                            <!-- Поиск пользователей в создании задачи -->
+                            <div class="user-search">
+                                <input type="text" id="taskUserSearchInput" placeholder="Поиск по логину..." class="form-control">
+                            </div>
+                            
+                            <div class="assignees-tabs">
+                                <button type="button" class="tab-btn active" data-tab="by-user">По пользователям</button>
+                                <button type="button" class="tab-btn" data-tab="by-role">По ролям</button>
+                            </div>
+                            
+                            <div id="by-user-tab" class="tab-content active">
+                                <div id="assigneesList" class="assignees-list">
+                                    <!-- Заполняется JavaScript -->
+                                </div>
+                            </div>
+                            
+                            <div id="by-role-tab" class="tab-content">
+                                <div class="role-assignees">
+                                    <label class="role-assignment">
+                                        <input type="checkbox" id="assignTechRole">
+                                        <span>Техарь</span>
+                                    </label>
+                                    <label class="role-assignment">
+                                        <input type="checkbox" id="assignReviewRole">
+                                        <span>Проверка</span>
+                                    </label>
+                                    <label class="role-assignment">
+                                        <input type="checkbox" id="assignDeployRole">
+                                        <span>Загружать</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Текущие участники</label>
-                    <div id="currentAssigneesList" class="current-assignees-list"></div>
-                </div>
-                <div class="form-group">
-                    <label>Добавить участников</label>
-                    <div id="availableAssigneesList" class="available-assignees-list"></div>
-                </div>
+                
                 <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('taskAssigneesModal')">
+                    <button type="button" class="btn btn-secondary" data-close-modal="taskModal">
                         <i class="fas fa-times"></i> Отмена
                     </button>
-                    <button type="button" class="btn btn-primary" id="saveTaskAssignees">
-                        <i class="fas fa-save"></i> Сохранить
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Создать задачу
                     </button>
                 </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно просмотра задачи -->
+    <div id="taskViewModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="taskViewTitle">Детали задачи</h3>
+                <button class="close" data-modal="taskViewModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="task-details">
+                    <div class="detail-row">
+                        <div class="detail-group">
+                            <label>Название:</label>
+                            <div id="taskViewName" class="detail-value"></div>
+                        </div>
+                        <div class="detail-group">
+                            <label>Приоритет:</label>
+                            <div id="taskViewPriority" class="detail-value"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-group" id="taskViewGoalGroup">
+                        <label>Цель:</label>
+                        <div id="taskViewGoal" class="detail-value"></div>
+                    </div>
+                    
+                    <div class="detail-group">
+                        <label>Описание:</label>
+                        <div id="taskViewDescription" class="detail-value"></div>
+                    </div>
+                    
+                    <div class="detail-row">
+                        <div class="detail-group" id="taskViewProjectGroup">
+                            <label>Проект:</label>
+                            <div id="taskViewProject" class="detail-value"></div>
+                        </div>
+                        <div class="detail-group" id="taskViewOverleafGroup">
+                            <label>Проект Overleaf:</label>
+                            <div id="taskViewOverleaf" class="detail-value"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-group" id="taskViewLinkGroup">
+                        <label>Ссылка:</label>
+                        <div id="taskViewLink" class="detail-value"></div>
+                    </div>
+                    
+                    <div class="detail-row">
+                        <div class="detail-group">
+                            <label>Дедлайн:</label>
+                            <div id="taskViewDeadline" class="detail-value"></div>
+                        </div>
+                        <div class="detail-group">
+                            <label>Статус:</label>
+                            <div id="taskViewStatus" class="detail-value"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-group">
+                        <label>Исполнители:</label>
+                        <div id="taskViewAssignees" class="detail-value assignees-display"></div>
+                    </div>
+                    
+                    <div class="detail-group">
+                        <label>Создатель:</label>
+                        <div id="taskViewCreator" class="detail-value"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="task-actions-panel">
+                <button id="taskEditAssignees" class="btn btn-secondary">
+                    <i class="fas fa-users"></i> Управление участниками
+                </button>
+                <button id="taskViewComments" class="btn btn-info">
+                    <i class="fas fa-comments"></i> Комментарии
+                </button>
+                <button id="taskArchiveBtn" class="btn btn-warning" style="display: none;">
+                    <i class="fas fa-archive"></i> Архивировать
+                </button>
+                <button id="taskDeleteBtn" class="btn btn-danger" style="display: none;">
+                    <i class="fas fa-trash"></i> Удалить
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Модальное окно комментариев к задаче -->
+    <!-- Модальное окно участников задачи -->
+    <div id="taskAssigneesModal" class="modal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>Управление участниками</h3>
+                <p id="taskAssigneesTitle" class="modal-subtitle"></p>
+                <button class="close" data-modal="taskAssigneesModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="assignees-management">
+                    <div class="current-assignees">
+                        <h4>Текущие участники</h4>
+                        <div id="currentAssigneesList" class="assignees-list">
+                            <!-- Заполняется JavaScript -->
+                        </div>
+                    </div>
+                    <div class="available-assignees">
+                        <h4>Добавить участников</h4>
+                        
+                        <!-- Поиск пользователей -->
+                        <div class="user-search">
+                            <input type="text" id="userSearchInput" placeholder="Поиск по логину..." class="form-control">
+                        </div>
+                        
+                        <div class="assignees-tabs">
+                            <button type="button" class="tab-btn active" data-tab="available-users">Пользователи</button>
+                            <button type="button" class="tab-btn" data-tab="available-roles">Роли</button>
+                        </div>
+                        
+                        <div id="available-users-tab" class="tab-content active">
+                            <div id="availableAssigneesList" class="assignees-list">
+                                <!-- Заполняется JavaScript -->
+                            </div>
+                        </div>
+                        
+                        <div id="available-roles-tab" class="tab-content">
+                            <div class="role-assignees">
+                                <label class="role-assignment">
+                                    <input type="checkbox" class="role-assignment-checkbox" value="tech">
+                                    <span>Техарь</span>
+                                </label>
+                                <label class="role-assignment">
+                                    <input type="checkbox" class="role-assignment-checkbox" value="review">
+                                    <span>Проверка</span>
+                                </label>
+                                <label class="role-assignment">
+                                    <input type="checkbox" class="role-assignment-checkbox" value="deploy">
+                                    <span>Загружать</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" data-close-modal="taskAssigneesModal">
+                    <i class="fas fa-times"></i> Отмена
+                </button>
+                <button type="button" id="saveTaskAssignees" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Сохранить
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно комментариев -->
     <div id="taskCommentsModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3><i class="fas fa-comments"></i> Комментарии</h3>
-                <button class="close">&times;</button>
+                <h3>Комментарии к задаче</h3>
+                <p id="taskCommentsTitle" class="modal-subtitle"></p>
+                <button class="close" data-modal="taskCommentsModal">&times;</button>
             </div>
-            <div style="padding: 30px;">
-                <div class="form-group">
-                    <label>Задача</label>
-                    <div id="taskCommentsTitle" class="task-title-display"></div>
-                </div>
-                <div class="form-group">
-                    <label>Комментарии</label>
-                    <div id="taskCommentsList" class="task-comments-list"></div>
-                </div>
-                <div class="form-group">
-                    <label>Добавить комментарий</label>
-                    <textarea id="newTaskComment" rows="3" placeholder="Введите ваш комментарий..."></textarea>
-                </div>
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('taskCommentsModal')">
-                        <i class="fas fa-times"></i> Закрыть
-                    </button>
-                    <button type="button" class="btn btn-primary" id="addTaskComment">
-                        <i class="fas fa-plus"></i> Добавить комментарий
-                    </button>
+            <div class="modal-body">
+                <div class="comments-container">
+                    <div id="taskCommentsList" class="comments-list">
+                        <!-- Заполняется JavaScript -->
+                    </div>
+                    <div class="comment-form">
+                        <textarea id="newTaskComment" placeholder="Добавьте комментарий..." rows="3"></textarea>
+                        <button id="addTaskComment" class="btn btn-primary">
+                            <i class="fas fa-paper-plane"></i> Отправить
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -399,23 +507,23 @@
 
     <!-- Модальное окно архива -->
     <div id="archiveModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content modal-large">
             <div class="modal-header">
-                <h3><i class="fas fa-archive"></i> Архивированные задачи</h3>
-                <button class="close">&times;</button>
+                <h3>Архивированные задачи</h3>
+                <button class="close" data-modal="archiveModal">&times;</button>
             </div>
-            <div style="padding: 30px;">
-                <div id="archivedTasksList" class="archived-tasks-list">
-                    <div class="loading">
-                        <div class="spinner"></div>
-                    </div>
+            <div class="modal-body">
+                <div id="archivedTasksList" class="archived-tasks">
+                    <!-- Заполняется JavaScript -->
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Скрипты -->
+    <!-- Socket.IO клиент -->
     <script src="/socket.io/socket.io.js"></script>
     <script src="js/app.js"></script>
+    <script src="js/time-tracking.js"></script>
+    <script src="js/task-splitting.js"></script>
 </body>
 </html>

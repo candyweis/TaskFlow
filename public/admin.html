@@ -3,181 +3,316 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TaskFlow - Панель администратора</title>
+    <title>TaskFlow - Админ панель</title>
     <link rel="stylesheet" href="css/admin.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
-    <!-- Авторизация для админки -->
-    <div id="adminAuthModal" class="modal">
+    <!-- Модальное окно авторизации -->
+    <div id="authModal" class="modal show">
         <div class="modal-content">
             <div class="auth-container">
                 <div class="auth-header">
                     <i class="fas fa-shield-alt"></i>
-                    <h2>Вход в админ-панель</h2>
+                    <h2>Админ панель TaskFlow</h2>
                 </div>
-                <form id="adminAuthForm">
-                    <div class="form-group">
-                        <input type="text" id="adminUsername" placeholder="Логин администратора" required>
+                <form id="authForm">
+                    <div class="form-group has-icon">
+                        <input type="text" id="username" placeholder="Имя администратора" required>
                         <i class="fas fa-user-shield"></i>
                     </div>
-                    <div class="form-group">
-                        <input type="password" id="adminPassword" placeholder="Пароль" required>
+                    <div class="form-group has-icon">
+                        <input type="password" id="password" placeholder="Пароль" required>
                         <i class="fas fa-lock"></i>
                     </div>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-sign-in-alt"></i>
-                        Войти в админку
+                    <button type="submit" id="authButton" class="btn btn-primary">
+                        <span id="authButtonText">Войти</span>
+                        <div id="authLoader" class="loader" style="display: none;"></div>
                     </button>
                 </form>
             </div>
         </div>
     </div>
 
-    <!-- Админ-панель -->
-    <div id="adminPanel" style="display: none;">
-        <!-- Сайдбар -->
-        <div class="admin-sidebar">
-            <div class="sidebar-header">
+    <!-- Основная админ панель -->
+    <div id="adminPanel" class="d-none">
+        <!-- Навигация -->
+        <nav class="admin-navbar">
+            <div class="nav-brand">
                 <i class="fas fa-shield-alt"></i>
-                <h2>Admin Panel</h2>
+                <h1>TaskFlow Admin</h1>
             </div>
-            <nav class="sidebar-nav">
-                <a href="#" class="nav-link active" data-section="dashboard">
-                    <i class="fas fa-tachometer-alt"></i>
-                    Дашборд
-                </a>
-                <a href="#" class="nav-link" data-section="users">
+            <div class="nav-menu">
+                <button class="nav-btn active" data-section="stats">
+                    <i class="fas fa-chart-pie"></i>
+                    <span>Статистика</span>
+                </button>
+                <button class="nav-btn" data-section="analytics">
+                    <i class="fas fa-clock"></i>
+                    <span>Аналитика времени</span>
+                </button>
+                <button class="nav-btn" data-section="users">
                     <i class="fas fa-users"></i>
-                    Пользователи
-                </a>
-                <a href="#" class="nav-link" data-section="projects">
+                    <span>Пользователи</span>
+                </button>
+                <button class="nav-btn" data-section="projects">
                     <i class="fas fa-project-diagram"></i>
-                    Проекты
+                    <span>Проекты</span>
+                </button>
+                <button class="nav-btn" data-section="overleaf">
+                    <i class="fas fa-external-link-alt"></i>
+                    <span>Overleaf</span>
+                </button>
+                <a href="/" class="nav-btn">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>На сайт</span>
                 </a>
-                <a href="#" class="nav-link" data-section="settings">
-                    <i class="fas fa-cog"></i>
-                    Настройки
-                </a>
-            </nav>
-            <div class="sidebar-footer">
-                <a href="/" class="btn btn-secondary">
-                    <i class="fas fa-home"></i>
-                    Главная
-                </a>
-                <button id="adminLogout" class="btn btn-secondary">
+            </div>
+            <div class="nav-user">
+                <span id="currentAdmin"></span>
+                <button id="logoutBtn">
                     <i class="fas fa-sign-out-alt"></i>
-                    Выход
+                    <span>Выход</span>
                 </button>
             </div>
-        </div>
+        </nav>
 
-        <!-- Основной контент -->
-        <div class="admin-main">
-            <!-- Топбар -->
-            <div class="admin-topbar">
-                <h1 id="sectionTitle">Дашборд</h1>
-                <div class="admin-user">
-                    <span id="adminCurrentUser"></span>
-                    <i class="fas fa-user-circle"></i>
-                </div>
+        <!-- Секция статистики -->
+        <section id="statsSection" class="content-section">
+            <div class="section-header">
+                <h2>Статистика системы</h2>
             </div>
-
-            <!-- Дашборд -->
-            <div id="dashboardSection" class="admin-section">
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon">
-                            <i class="fas fa-users"></i>
-                        </div>
-                        <div class="stat-content">
-                            <h3 id="totalUsers">0</h3>
-                            <p>Активных пользователей</p>
-                        </div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-users"></i>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">
-                            <i class="fas fa-project-diagram"></i>
-                        </div>
-                        <div class="stat-content">
-                            <h3 id="totalProjects">0</h3>
-                            <p>Проектов</p>
-                        </div>
+                    <div class="stat-content">
+                        <h3 id="totalUsers">0</h3>
+                        <p>Активных пользователей</p>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">
-                            <i class="fas fa-tasks"></i>
-                        </div>
-                        <div class="stat-content">
-                            <h3 id="totalTasks">0</h3>
-                            <p>Задач в работе</p>
-                        </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-project-diagram"></i>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <div class="stat-content">
-                            <h3 id="completedTasks">0</h3>
-                            <p>Выполнено задач</p>
-                        </div>
+                    <div class="stat-content">
+                        <h3 id="totalProjects">0</h3>
+                        <p>Всего проектов</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-tasks"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3 id="totalTasks">0</h3>
+                        <p>Всего задач</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3 id="completedTasks">0</h3>
+                        <p>Выполнено задач</p>
                     </div>
                 </div>
             </div>
+        </section>
 
-            <!-- Пользователи -->
-            <div id="usersSection" class="admin-section" style="display: none;">
-                <div class="section-header">
-                    <h2>Управление пользователями</h2>
-                    <button id="addUserBtn" class="btn btn-primary">
-                        <i class="fas fa-user-plus"></i>
-                        Добавить пользователя
+        <!-- Секция аналитики времени -->
+        <section id="analyticsSection" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2>📊 Аналитика времени работы</h2>
+                <div class="analytics-filters">
+                    <select id="periodFilter" class="form-control">
+                        <option value="week">Неделя</option>
+                        <option value="month" selected>Месяц</option>
+                        <option value="quarter">Квартал</option>
+                        <option value="year">Год</option>
+                    </select>
+                    
+                    <select id="employeeFilter" class="form-control">
+                        <option value="">Все сотрудники</option>
+                    </select>
+                    
+                    <button id="exportBtn" class="btn btn-primary">
+                        <i class="fas fa-download"></i> Экспорт CSV
                     </button>
                 </div>
-                <div class="users-table">
-                    <table>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3 id="totalHours">0</h3>
+                        <p>Всего часов отработано</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3 id="activeEmployees">0</h3>
+                        <p>Активных сотрудников</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-tasks"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3 id="completedWithTime">0</h3>
+                        <p>Задач с учетом времени</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3 id="avgHoursPerTask">0</h3>
+                        <p>Часов на задачу</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="analytics-table">
+                <h3>Детализация по сотрудникам</h3>
+                <div class="table-container">
+                    <table id="employeeStatsTable">
                         <thead>
                             <tr>
-                                <th>ID</th>
-                                <th>Имя пользователя</th>
-                                <th>Роль</th>
-                                <th>Контакты</th>
-                                <th>Права доступа</th>
-                                <th>Статус</th>
-                                <th>Действия</th>
+                                <th>👤 Сотрудник</th>
+                                <th>✅ Задач выполнено</th>
+                                <th>⏰ Всего часов</th>
+                                <th>📊 Средние часы на задачу</th>
+                                <th>📝 Записей времени</th>
                             </tr>
                         </thead>
-                        <tbody id="usersTableBody"></tbody>
+                        <tbody id="employeeStatsBody">
+                            <tr>
+                                <td colspan="5" class="loading-cell">
+                                    <div class="spinner"></div>
+                                </td>
+                            </tr>
+                        </tbody>
                     </table>
                 </div>
             </div>
+        </section>
 
-            <!-- Проекты -->
-            <div id="projectsSection" class="admin-section" style="display: none;">
-                <div class="section-header">
-                    <h2>Управление проектами</h2>
-                </div>
-                <div id="adminProjectsList" class="projects-list"></div>
+        <!-- Секция пользователей -->
+        <section id="usersSection" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2>Управление пользователями</h2>
+                <button id="addUserBtn" class="btn btn-primary">
+                    <i class="fas fa-plus"></i>
+                    Добавить пользователя
+                </button>
             </div>
+            <div class="users-table-container">
+                <table class="users-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Имя пользователя</th>
+                            <th>Роль</th>
+                            <th>Статус</th>
+                            <th>Telegram</th>
+                            <th>Телефон</th>
+                            <th>ВКонтакте</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersTableBody">
+                        <tr>
+                            <td colspan="8" class="loading-cell">
+                                <div class="spinner"></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
 
-            <!-- Настройки -->
-            <div id="settingsSection" class="admin-section" style="display: none;">
-                <div class="settings-container">
-                    <h2>Системные настройки</h2>
-                    <div class="settings-card">
-                        <h3>Безопасность</h3>
-                        <p>Настройки безопасности и доступа</p>
-                    </div>
-                    <div class="settings-card">
-                        <h3>Уведомления</h3>
-                        <p>Настройки уведомлений системы</p>
-                    </div>
-                </div>
+        <!-- Секция проектов -->
+        <section id="projectsSection" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2>Управление проектами</h2>
+                <button id="addProjectBtn" class="btn btn-primary">
+                    <i class="fas fa-plus"></i>
+                    Добавить проект
+                </button>
             </div>
-        </div>
+            <div class="projects-table-container">
+                <table class="projects-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Название</th>
+                            <th>Описание</th>
+                            <th>Создатель</th>
+                            <th>Дата создания</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="projectsTableBody">
+                        <tr>
+                            <td colspan="6" class="loading-cell">
+                                <div class="spinner"></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Секция Overleaf проектов -->
+        <section id="overleafSection" class="content-section" style="display: none;">
+            <div class="section-header">
+                <h2>Управление проектами Overleaf</h2>
+                <button id="addOverleafProjectBtn" class="btn btn-success">
+                    <i class="fas fa-plus"></i>
+                    Добавить проект Overleaf
+                </button>
+            </div>
+            <div class="overleaf-table-container">
+                <table class="overleaf-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Название</th>
+                            <th>Описание</th>
+                            <th>Ссылка</th>
+                            <th>Создатель</th>
+                            <th>Дата создания</th>
+                            <th>Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody id="overleafTableBody">
+                        <tr>
+                            <td colspan="7" class="loading-cell">
+                                <div class="spinner"></div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
     </div>
 
-    <!-- Модальное окно создания/редактирования пользователя -->
+    <!-- Модальное окно пользователя -->
     <div id="userModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -186,61 +321,136 @@
             </div>
             <form id="userForm">
                 <div class="form-group">
-                    <label>Имя пользователя</label>
+                    <label>Имя пользователя *</label>
                     <input type="text" id="userUsername" required>
                 </div>
                 <div class="form-group" id="passwordGroup">
-                    <label>Пароль</label>
+                    <label>Пароль *</label>
                     <input type="password" id="userPassword" required>
                 </div>
                 <div class="form-group">
                     <label>Роль</label>
-                    <select id="userRole" required>
-                        <option value="worker">Работник</option>
+                    <select id="userRole">
+                        <option value="worker">Исполнитель</option>
                         <option value="manager">Менеджер</option>
                         <option value="admin">Администратор</option>
                     </select>
+                </div>
+                <div class="form-group">
+                    <label>Telegram</label>
+                    <input type="text" id="userTelegram" placeholder="@username или t.me/username">
                 </div>
                 <div class="form-group">
                     <label>Телефон</label>
                     <input type="tel" id="userPhone" placeholder="+7 (999) 123-45-67">
                 </div>
                 <div class="form-group">
-                    <label>Телеграм</label>
-                    <input type="text" id="userTelegram" placeholder="@username или username">
+                    <label>ВКонтакте</label>
+                    <input type="text" id="userVk" placeholder="vk.com/username или @username">
+                </div>
+                <div class="form-group">
+                    <label>Статус</label>
+                    <select id="userStatus">
+                        <option value="1">Активен</option>
+                        <option value="0">Заблокирован</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label>Права доступа</label>
                     <div class="permissions-grid">
                         <label class="permission-item">
-                            <input type="checkbox" id="canManageUsers" name="permissions">
+                            <input type="checkbox" id="canManageUsers">
                             <span>Управление пользователями</span>
                         </label>
                         <label class="permission-item">
-                            <input type="checkbox" id="canManageProjects" name="permissions">
+                            <input type="checkbox" id="canManageProjects">
                             <span>Управление проектами</span>
                         </label>
                         <label class="permission-item">
-                            <input type="checkbox" id="canManageTasks" name="permissions">
+                            <input type="checkbox" id="canManageTasks">
                             <span>Управление задачами</span>
                         </label>
                         <label class="permission-item">
-                            <input type="checkbox" id="canDevelop" name="permissions">
-                            <span>Может разрабатывать</span>
+                            <input type="checkbox" id="canDevelop">
+                            <span>Техарь</span>
                         </label>
                         <label class="permission-item">
-                            <input type="checkbox" id="canReview" name="permissions">
-                            <span>Может проверять</span>
+                            <input type="checkbox" id="canReview">
+                            <span>Проверка кода</span>
                         </label>
                         <label class="permission-item">
-                            <input type="checkbox" id="canDeploy" name="permissions">
-                            <span>Может заливать</span>
+                            <input type="checkbox" id="canDeploy">
+                            <span>Загружать</span>
                         </label>
                     </div>
                 </div>
                 <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('userModal')">Отмена</button>
-                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('userModal')">
+                        <i class="fas fa-times"></i> Отмена
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Сохранить
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно проекта -->
+    <div id="projectModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="projectModalTitle">Добавить проект</h3>
+                <button class="close">&times;</button>
+            </div>
+            <form id="projectForm">
+                <div class="form-group">
+                    <label>Название проекта *</label>
+                    <input type="text" id="projectName" required>
+                </div>
+                <div class="form-group">
+                    <label>Описание</label>
+                    <textarea id="projectDescription" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('projectModal')">
+                        <i class="fas fa-times"></i> Отмена
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Сохранить
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно Overleaf проекта -->
+    <div id="overleafProjectModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="overleafProjectModalTitle">Добавить проект Overleaf</h3>
+                <button class="close">&times;</button>
+            </div>
+            <form id="overleafProjectForm">
+                <div class="form-group">
+                    <label>Название проекта *</label>
+                    <input type="text" id="overleafProjectName" required>
+                </div>
+                <div class="form-group">
+                    <label>Описание</label>
+                    <textarea id="overleafProjectDescription" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Ссылка на проект</label>
+                    <input type="url" id="overleafProjectLink" placeholder="https://overleaf.com/project/...">
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('overleafProjectModal')">
+                        <i class="fas fa-times"></i> Отмена
+                    </button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save"></i> Сохранить
+                    </button>
                 </div>
             </form>
         </div>
