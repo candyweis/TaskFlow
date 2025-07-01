@@ -6,7 +6,7 @@ const Project = require('./models/Project');
 class TaskFlowTelegramBot {
     constructor() {
         // Токен можно задать напрямую или через переменную окружения
-        this.token = process.env.TELEGRAM_BOT_TOKEN || '7640810451:AAH1YtcL98ALY1OXZiMEpLOiKUlzXl5HAIc';
+        this.token = process.env.TELEGRAM_BOT_TOKEN || '7238087192:AAF_v9R4jS_O2dZ8tRqG6wjNbEk75GUSrkA';
         
         // Проверяем токен
         if (!this.token || this.token === 'YOUR_BOT_TOKEN_HERE') {
@@ -135,6 +135,7 @@ class TaskFlowTelegramBot {
 • Назначении на новые задачи
 • Изменении статуса ваших задач
 • Комментариях к вашим задачам
+• Уведомления по ролям
             `;
             
             try {
@@ -235,6 +236,7 @@ class TaskFlowTelegramBot {
 🔄 Изменение статуса задачи
 💬 Новые комментарии
 ⏰ Приближение дедлайна
+👷 Уведомления по ролям
 
 *Поддержка:* Обратитесь к администратору системы
             `;
@@ -264,7 +266,7 @@ class TaskFlowTelegramBot {
             in_progress: '🔄',
             developed: '💻',
             review: '👀',
-            deploy: '🚀',
+            deploy: '📤',
             done: '✅',
             archived: '📦'
         };
@@ -275,9 +277,9 @@ class TaskFlowTelegramBot {
         const statusTexts = {
             unassigned: 'Неразобранные',
             in_progress: 'В работе',
-            developed: 'Разработано',
+            developed: 'Техарь',
             review: 'На проверке',
-            deploy: 'На заливе',
+            deploy: 'Загружать',
             done: 'Готово',
             archived: 'Архивировано'
         };
@@ -331,7 +333,7 @@ class TaskFlowTelegramBot {
 ${task.goal ? `*Цель:* ${task.goal}` : ''}
 *Проект:* ${project ? project.name : 'Без проекта'}
 *Приоритет:* ${this.getPriorityEmoji(task.priority)} ${task.priority}
-*Дедлайн:* ${new Date(task.deadline).toLocaleDateString('ru-RU')}
+*Дедлайн:* ${new Date(task.deadline).toLocaleString('ru-RU')}
 *Назначил:* ${assigner ? assigner.username : 'Неизвестно'}
 
 *Описание:*
@@ -347,6 +349,66 @@ ${task.description || 'Описание отсутствует'}
             }
         } catch (error) {
             console.error('Error sending assignment notification:', error);
+        }
+    }
+
+    // Уведомление о назначении по роли
+    async notifyRoleAssignment(taskId, role, assignedBy) {
+        if (!this.isRunning) return;
+
+        try {
+            const task = await Task.findById(taskId);
+            if (!task) return;
+
+            const project = await Project.findById(task.project_id);
+            const assigner = await User.findById(assignedBy);
+
+            let users = [];
+            let roleText = '';
+
+            switch (role) {
+                case 'tech':
+                    users = await User.findTechUsers();
+                    roleText = 'Техарь';
+                    break;
+                case 'review':
+                    users = await User.findReviewUsers();
+                    roleText = 'Проверка';
+                    break;
+                case 'deploy':
+                    users = await User.findDeployUsers();
+                    roleText = 'Загружать';
+                    break;
+            }
+
+            for (const user of users) {
+                if (!user.telegram_chat_id) continue;
+
+                const message = `
+👷 *Новая задача для роли "${roleText}"*
+
+*Задача:* ${task.title}
+${task.goal ? `*Цель:* ${task.goal}` : ''}
+*Проект:* ${project ? project.name : 'Без проекта'}
+*Приоритет:* ${this.getPriorityEmoji(task.priority)} ${task.priority}
+*Дедлайн:* ${new Date(task.deadline).toLocaleString('ru-RU')}
+*Назначил:* ${assigner ? assigner.username : 'Неизвестно'}
+
+*Описание:*
+${task.description || 'Описание отсутствует'}
+
+Эта задача назначена на вашу роль. Следующее уведомление придет когда задача перейдет в соответствующую колонку.
+
+🔗 [Открыть в TaskFlow](${process.env.APP_URL || 'http://localhost:3000'})
+                `;
+
+                const sent = await this.safeSendMessage(user.telegram_chat_id, message, { parse_mode: 'Markdown' });
+                if (sent) {
+                    console.log(`Sent role assignment notification to ${user.username} for role ${roleText}`);
+                }
+            }
+        } catch (error) {
+            console.error('Error sending role assignment notification:', error);
         }
     }
 
@@ -388,7 +450,7 @@ ${this.getStatusEmoji(oldStatus)} ${this.getStatusText(oldStatus)} → ${this.ge
             // Уведомляем назначенных пользователей (кроме того, кто изменил)
             if (task.assignees && task.assignees.length > 0) {
                 for (const assigneeId of task.assignees) {
-                    if (assigneeId === changedBy) continue; // Не уведомляем того, кто изменил
+                    if (assigneeId === changedBy) continue;
 
                     const user = await User.findById(assigneeId);
                     if (!user || !user.telegram_chat_id) continue;
@@ -411,8 +473,67 @@ ${this.getStatusEmoji(oldStatus)} ${this.getStatusText(oldStatus)} → ${this.ge
                     }
                 }
             }
+
+            // Уведомляем пользователей по ролям при переходе в соответствующую колонку
+            await this.notifyRoleStatusChange(task, newStatus, changer);
+
         } catch (error) {
             console.error('Error sending status change notification:', error);
+        }
+    }
+
+    // Уведомления по ролям при изменении статуса
+    async notifyRoleStatusChange(task, newStatus, changer) {
+        try {
+            let users = [];
+            let roleText = '';
+
+            switch (newStatus) {
+                case 'developed':
+                    users = await User.findTechUsers();
+                    roleText = 'Техарь';
+                    break;
+                case 'review':
+                    users = await User.findReviewUsers();
+                    roleText = 'Проверка';
+                    break;
+                case 'deploy':
+                    users = await User.findDeployUsers();
+                    roleText = 'Загружать';
+                    break;
+                default:
+                    return; // Не уведомляем для других статусов
+            }
+
+            const project = await Project.findById(task.project_id);
+
+            for (const user of users) {
+                if (!user.telegram_chat_id) continue;
+                if (task.assignees && task.assignees.includes(user.id)) continue; // Уже получил уведомление как участник
+
+                const message = `
+🎯 *Задача готова для вашей роли "${roleText}"*
+
+*Задача:* ${task.title}
+${task.goal ? `*Цель:* ${task.goal}` : ''}
+*Проект:* ${project ? project.name : 'Без проекта'}
+*Приоритет:* ${this.getPriorityEmoji(task.priority)} ${task.priority}
+*Дедлайн:* ${new Date(task.deadline).toLocaleString('ru-RU')}
+*Переместил:* ${changer ? changer.username : 'Неизвестно'}
+
+*Описание:*
+${task.description || 'Описание отсутствует'}
+
+🔗 [Открыть в TaskFlow](${process.env.APP_URL || 'http://localhost:3000'})
+                `;
+
+                const sent = await this.safeSendMessage(user.telegram_chat_id, message, { parse_mode: 'Markdown' });
+                if (sent) {
+                    console.log(`Sent role status notification to ${user.username} for role ${roleText}`);
+                }
+            }
+        } catch (error) {
+            console.error('Error sending role status notification:', error);
         }
     }
 
@@ -470,58 +591,31 @@ ${this.getStatusEmoji(oldStatus)} ${this.getStatusText(oldStatus)} → ${this.ge
         }
     }
 
-    // Уведомление о приближающемся дедлайне
-    async notifyUpcomingDeadline(taskId) {
+    // Уведомление об изменении логина
+    async notifyUsernameChange(userId, oldUsername, newUsername) {
         if (!this.isRunning) return;
 
         try {
-            const task = await Task.findById(taskId);
-            if (!task) return;
+            const user = await User.findById(userId);
+            if (!user || !user.telegram_chat_id) return;
 
-            const project = await Project.findById(task.project_id);
-            const deadline = new Date(task.deadline);
-            const now = new Date();
-            const hoursLeft = Math.round((deadline - now) / (1000 * 60 * 60));
+            const message = `
+🔄 *Ваш логин изменен*
 
-            const usersToNotify = new Set();
-            
-            // Добавляем создателя задачи
-            if (task.created_by) {
-                usersToNotify.add(task.created_by);
-            }
-            
-            // Добавляем назначенных пользователей
-            if (task.assignees) {
-                task.assignees.forEach(assigneeId => {
-                    usersToNotify.add(assigneeId);
-                });
-            }
+*Старый логин:* ${oldUsername}
+*Новый логин:* ${newUsername}
 
-            for (const userId of usersToNotify) {
-                const user = await User.findById(userId);
-                if (!user || !user.telegram_chat_id) continue;
+Теперь используйте новый логин для входа в систему TaskFlow.
 
-                const message = `
-⏰ *Приближается дедлайн!*
+🔗 [Открыть TaskFlow](${process.env.APP_URL || 'http://localhost:3000'})
+            `;
 
-*Задача:* ${task.title}
-*Проект:* ${project ? project.name : 'Без проекта'}
-*Статус:* ${this.getStatusEmoji(task.status)} ${this.getStatusText(task.status)}
-*Приоритет:* ${this.getPriorityEmoji(task.priority)} ${task.priority}
-
-${hoursLeft > 0 ? `⏳ Осталось: ${hoursLeft} ч.` : '🚨 Дедлайн просрочен!'}
-*Дедлайн:* ${deadline.toLocaleString('ru-RU')}
-
-🔗 [Открыть в TaskFlow](${process.env.APP_URL || 'http://localhost:3000'})
-                `;
-
-                const sent = await this.safeSendMessage(user.telegram_chat_id, message, { parse_mode: 'Markdown' });
-                if (sent) {
-                    console.log(`Sent deadline notification to ${user.username}`);
-                }
+            const sent = await this.safeSendMessage(user.telegram_chat_id, message, { parse_mode: 'Markdown' });
+            if (sent) {
+                console.log(`Sent username change notification to ${user.username}`);
             }
         } catch (error) {
-            console.error('Error sending deadline notification:', error);
+            console.error('Error sending username change notification:', error);
         }
     }
 

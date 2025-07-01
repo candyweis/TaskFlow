@@ -10,6 +10,7 @@ class User {
         this.permissions = data.permissions;
         this.telegram = data.telegram;
         this.phone = data.phone;
+        this.vk = data.vk;
         this.telegram_chat_id = data.telegram_chat_id;
         this.created_at = data.created_at;
         this.is_active = data.is_active;
@@ -18,14 +19,14 @@ class User {
     // Создать пользователя
     static create(userData) {
         return new Promise((resolve, reject) => {
-            const { username, password, role, permissions, telegram, phone } = userData;
+            const { username, password, role, permissions, telegram, phone, vk } = userData;
             
             const query = `
-                INSERT INTO users (username, password, role, permissions, telegram, phone) 
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO users (username, password, role, permissions, telegram, phone, vk) 
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             `;
             
-            db.run(query, [username, password, role || 'worker', permissions || '{}', telegram, phone], function(err) {
+            db.run(query, [username, password, role || 'worker', permissions || '{}', telegram, phone, vk], function(err) {
                 if (err) {
                     reject(err);
                 } else {
@@ -132,6 +133,44 @@ class User {
         });
     }
 
+    // Получить пользователей по разрешениям
+    static findByPermission(permission) {
+        return new Promise((resolve, reject) => {
+            const query = 'SELECT * FROM users WHERE is_active = 1';
+            db.all(query, [], (err, rows) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    const users = rows.map(row => new User(row))
+                        .filter(user => {
+                            try {
+                                const permissions = JSON.parse(user.permissions || '{}');
+                                return permissions[permission] === true || user.role === 'admin';
+                            } catch (error) {
+                                return user.role === 'admin';
+                            }
+                        });
+                    resolve(users);
+                }
+            });
+        });
+    }
+
+    // Получить пользователей с правом техаря
+    static findTechUsers() {
+        return this.findByPermission('canDevelop');
+    }
+
+    // Получить пользователей с правом проверки
+    static findReviewUsers() {
+        return this.findByPermission('canReview');
+    }
+
+    // Получить пользователей с правом загрузки
+    static findDeployUsers() {
+        return this.findByPermission('canDeploy');
+    }
+
     // Получить пользователей по роли
     static findByRole(role) {
         return new Promise((resolve, reject) => {
@@ -147,95 +186,55 @@ class User {
         });
     }
 
-    // Поиск пользователей
-    static search(searchTerm) {
-        return new Promise((resolve, reject) => {
-            const query = `
-                SELECT * FROM users 
-                WHERE username LIKE ? OR telegram LIKE ? OR phone LIKE ?
-                ORDER BY username
-            `;
-            const searchPattern = `%${searchTerm}%`;
-            
-            db.all(query, [searchPattern, searchPattern, searchPattern], (err, rows) => {
-                if (err) {
-                    reject(err);
-                } else {
-                    const users = rows.map(row => new User(row));
-                    resolve(users);
-                }
-            });
-        });
-    }
-
-    // Обновить пользователя
-    static update(id, userData) {
-        return new Promise((resolve, reject) => {
-            const { role, permissions, is_active, phone, telegram, username } = userData;
-            
-            let query = `UPDATE users SET `;
-            let params = [];
-            let updates = [];
-
-            if (role !== undefined) {
-                updates.push('role = ?');
-                params.push(role);
-            }
-            if (permissions !== undefined) {
-                updates.push('permissions = ?');
-                params.push(permissions);
-            }
-            if (is_active !== undefined) {
-                updates.push('is_active = ?');
-                params.push(is_active);
-            }
-            if (phone !== undefined) {
-                updates.push('phone = ?');
-                params.push(phone);
-            }
-            if (telegram !== undefined) {
-                updates.push('telegram = ?');
-                params.push(telegram);
-            }
-            if (username !== undefined) {
-                updates.push('username = ?');
-                params.push(username);
-            }
-
-            if (updates.length === 0) {
-                reject(new Error('No fields to update'));
-                return;
-            }
-
-            query += updates.join(', ') + ' WHERE id = ?';
-            params.push(id);
-            
-            db.run(query, params, function(err) {
-                if (err) {
-                    reject(err);
-                } else if (this.changes === 0) {
-                    reject(new Error('User not found'));
-                } else {
-                    resolve(true);
-                }
-            });
-        });
-    }
-
-    // Обновить пароль
-    static updatePassword(id, newPassword) {
+    // Обновить логин и пароль
+    static updateCredentials(userId, newUsername, newPassword) {
         return new Promise(async (resolve, reject) => {
             try {
-                const hashedPassword = await bcrypt.hash(newPassword, 10);
-                const query = 'UPDATE users SET password = ? WHERE id = ?';
-                
-                db.run(query, [hashedPassword, id], function(err) {
+                const user = await User.findById(userId);
+                if (!user) {
+                    reject(new Error('User not found'));
+                    return;
+                }
+
+                let query = 'UPDATE users SET ';
+                let params = [];
+                let updates = [];
+
+                if (newUsername && newUsername !== user.username) {
+                    // Проверяем уникальность нового логина
+                    const existingUser = await User.findByUsername(newUsername);
+                    if (existingUser && existingUser.id !== userId) {
+                        reject(new Error('Username already exists'));
+                        return;
+                    }
+                    updates.push('username = ?');
+                    params.push(newUsername);
+                }
+
+                if (newPassword) {
+                    const hashedPassword = await bcrypt.hash(newPassword, 10);
+                    updates.push('password = ?');
+                    params.push(hashedPassword);
+                }
+
+                if (updates.length === 0) {
+                    resolve({ message: 'No changes to update' });
+                    return;
+                }
+
+                query += updates.join(', ') + ' WHERE id = ?';
+                params.push(userId);
+
+                db.run(query, params, function(err) {
                     if (err) {
                         reject(err);
-                    } else if (this.changes === 0) {
-                        reject(new Error('User not found'));
                     } else {
-                        resolve(true);
+                        resolve({ 
+                            message: 'Credentials updated successfully',
+                            usernameChanged: newUsername && newUsername !== user.username,
+                            passwordChanged: !!newPassword,
+                            newUsername: newUsername || user.username
+                        });
                     }
                 });
             } catch (error) {
@@ -244,45 +243,100 @@ class User {
         });
     }
 
-    // Деактивировать пользователя
-    static deactivate(id) {
+    // ИСПРАВЛЕНО: Обновить пользователя - правильная обработка VK поля
+    static update(id, userData) {
         return new Promise((resolve, reject) => {
-            const query = 'UPDATE users SET is_active = 0 WHERE id = ?';
-            db.run(query, [id], function(err) {
-                if (err) {
-                    reject(err);
-                } else if (this.changes === 0) {
-                    reject(new Error('User not found'));
-                } else {
-                    resolve(true);
-                }
-            });
-        });
-    }
-
-    // Активировать пользователя
-    static activate(id) {
-        return new Promise((resolve, reject) => {
-            const query = 'UPDATE users SET is_active = 1 WHERE id = ?';
-            db.run(query, [id], function(err) {
-                if (err) {
-                    reject(err);
-                } else if (this.changes === 0) {
-                    reject(new Error('User not found'));
-                } else {
-                    resolve(true);
-                }
-            });
-        });
-    }
-
-    // Удалить пользователя (мягкое удаление)
-    static softDelete(id) {
-        return new Promise((resolve, reject) => {
-            const query = 'UPDATE users SET is_active = 0, username = ? WHERE id = ?';
-            const deletedUsername = `deleted_user_${id}_${Date.now()}`;
+            console.log('🔄 User.update called with:', { id, userData });
             
-            db.run(query, [deletedUsername, id], function(err) {
+            const { username, role, permissions, is_active, phone, telegram, vk } = userData;
+            
+            // Проверяем, что хотя бы одно поле для обновления передано
+            if (username === undefined && role === undefined && permissions === undefined && 
+                is_active === undefined && phone === undefined && telegram === undefined && vk === undefined) {
+                reject(new Error('No fields to update'));
+                return;
+            }
+            
+            // Формируем запрос динамически
+            let query = 'UPDATE users SET ';
+            let params = [];
+            let updates = [];
+
+            if (username !== undefined && username !== null) {
+                updates.push('username = ?');
+                params.push(username);
+                console.log('📝 Will update username to:', username);
+            }
+            
+            if (role !== undefined && role !== null) {
+                updates.push('role = ?');
+                params.push(role);
+                console.log('📝 Will update role to:', role);
+            }
+            
+            if (permissions !== undefined) {
+                updates.push('permissions = ?');
+                params.push(permissions);
+                console.log('📝 Will update permissions to:', permissions);
+            }
+            
+            if (is_active !== undefined) {
+                updates.push('is_active = ?');
+                params.push(is_active ? 1 : 0);
+                console.log('📝 Will update is_active to:', is_active);
+            }
+            
+            if (phone !== undefined) {
+                updates.push('phone = ?');
+                params.push(phone);
+                console.log('📝 Will update phone to:', phone);
+            }
+            
+            if (telegram !== undefined) {
+                updates.push('telegram = ?');
+                params.push(telegram);
+                console.log('📝 Will update telegram to:', telegram);
+            }
+            
+            // ИСПРАВЛЕНО: правильная обработка VK поля
+            if (vk !== undefined) {
+                updates.push('vk = ?');
+                params.push(vk);
+                console.log('📝 Will update vk to:', vk);
+            }
+
+            if (updates.length === 0) {
+                reject(new Error('No valid fields to update'));
+                return;
+            }
+
+            query += updates.join(', ') + ' WHERE id = ?';
+            params.push(id);
+            
+            console.log('🔄 Final SQL query:', query);
+            console.log('🔄 Final params:', params);
+            
+            db.run(query, params, function(err) {
+                if (err) {
+                    console.error('❌ Database error:', err);
+                    reject(err);
+                } else {
+                    console.log('✅ Database updated, changes:', this.changes);
+                    if (this.changes === 0) {
+                        reject(new Error('User not found or no changes made'));
+                    } else {
+                        resolve(true);
+                    }
+                }
+            });
+        });
+    }
+
+    // Изменить статус пользователя
+    static updateStatus(id, isActive) {
+        return new Promise((resolve, reject) => {
+            const query = 'UPDATE users SET is_active = ? WHERE id = ?';
+            db.run(query, [isActive ? 1 : 0, id], function(err) {
                 if (err) {
                     reject(err);
                 } else if (this.changes === 0) {
@@ -294,7 +348,7 @@ class User {
         });
     }
 
-    // Удалить пользователя (жесткое удаление)
+    // Удалить пользователя
     static delete(id) {
         return new Promise((resolve, reject) => {
             db.serialize(() => {
@@ -307,7 +361,7 @@ class User {
                 // Обновляем ссылки на пользователя в задачах
                 db.run('UPDATE tasks SET created_by = NULL WHERE created_by = ?', [id]);
                 db.run('UPDATE projects SET created_by = NULL WHERE created_by = ?', [id]);
-                db.run('UPDATE overkill_projects SET created_by = NULL WHERE created_by = ?', [id]);
+                db.run('UPDATE overleaf_projects SET created_by = NULL WHERE created_by = ?', [id]);
                 
                 // Удаляем пользователя
                 db.run('DELETE FROM users WHERE id = ?', [id], function(err) {
@@ -326,20 +380,26 @@ class User {
         });
     }
 
+    // Проверить пароль
+    async verifyPassword(password) {
+        return await bcrypt.compare(password, this.password);
+    }
+
     // Получить статистику пользователя
-    static getStats(userId) {
+    static getUserStats(userId) {
         return new Promise((resolve, reject) => {
             const query = `
                 SELECT 
-                    (SELECT COUNT(*) FROM task_assignments WHERE user_id = ?) as assigned_tasks,
-                    (SELECT COUNT(*) FROM tasks t 
-                     JOIN task_assignments ta ON t.id = ta.task_id 
-                     WHERE ta.user_id = ? AND t.status = 'done') as completed_tasks,
-                    (SELECT COUNT(*) FROM task_comments WHERE user_id = ?) as comments_count,
-                    (SELECT COUNT(*) FROM tasks WHERE created_by = ?) as created_tasks
+                    COUNT(CASE WHEN JSON_EXTRACT(assignees, '$') LIKE '%${userId}%' THEN 1 END) as assigned_tasks,
+                    COUNT(CASE WHEN JSON_EXTRACT(assignees, '$') LIKE '%${userId}%' AND status = 'done' THEN 1 END) as completed_tasks,
+                    COUNT(CASE WHEN JSON_EXTRACT(assignees, '$') LIKE '%${userId}%' AND status = 'in_progress' THEN 1 END) as active_tasks,
+                    COUNT(CASE WHEN JSON_EXTRACT(assignees, '$') LIKE '%${userId}%' AND deadline < datetime('now') AND status NOT IN ('done', 'archived') THEN 1 END) as overdue_tasks,
+                    COUNT(CASE WHEN created_by = ${userId} THEN 1 END) as created_tasks
+                FROM tasks 
+                WHERE status != 'archived'
             `;
             
-            db.get(query, [userId, userId, userId, userId], (err, row) => {
+            db.get(query, [], (err, row) => {
                 if (err) {
                     reject(err);
                 } else {
@@ -350,18 +410,36 @@ class User {
     }
 
     // Получить задачи пользователя
-    async getUserTasks() {
+    static getUserTasks(userId, options = {}) {
         return new Promise((resolve, reject) => {
-            const query = `
-                SELECT t.*, p.name as project_name 
+            let query = `
+                SELECT t.*, p.name as project_name, op.name as overleaf_project_name, u.username as created_by_name
                 FROM tasks t
                 LEFT JOIN projects p ON t.project_id = p.id
-                JOIN task_assignments ta ON t.id = ta.task_id
-                WHERE ta.user_id = ? AND t.status != 'archived'
-                ORDER BY t.deadline ASC
+                LEFT JOIN overleaf_projects op ON t.overleaf_project_id = op.id
+                LEFT JOIN users u ON t.created_by = u.id
+                WHERE (JSON_EXTRACT(t.assignees, '$') LIKE '%${userId}%' OR t.created_by = ${userId})
             `;
             
-            db.all(query, [this.id], (err, rows) => {
+            const params = [];
+            
+            if (options.status) {
+                query += ' AND t.status = ?';
+                params.push(options.status);
+            }
+            
+            if (options.exclude_archived) {
+                query += ' AND t.status != "archived"';
+            }
+            
+            query += ' ORDER BY t.created_at DESC';
+            
+            if (options.limit) {
+                query += ' LIMIT ?';
+                params.push(options.limit);
+            }
+            
+            db.all(query, params, (err, rows) => {
                 if (err) {
                     reject(err);
                 } else {
@@ -369,53 +447,6 @@ class User {
                 }
             });
         });
-    }
-
-    // Проверить пароль
-    async verifyPassword(password) {
-        return await bcrypt.compare(password, this.password);
-    }
-
-    // Проверить права доступа
-    hasPermission(permission) {
-        try {
-            const permissions = JSON.parse(this.permissions || '{}');
-            return permissions[permission] === true || this.role === 'admin';
-        } catch (error) {
-            return this.role === 'admin';
-        }
-    }
-
-    // Проверить роль
-    hasRole(role) {
-        if (Array.isArray(role)) {
-            return role.includes(this.role);
-        }
-        return this.role === role;
-    }
-
-    // Получить полное имя роли
-    getRoleName() {
-        const roleNames = {
-            admin: 'Администратор',
-            manager: 'Менеджер',
-            worker: 'Исполнитель'
-        };
-        return roleNames[this.role] || this.role;
-    }
-
-    // Проверить активность
-    isActive() {
-        return this.is_active === 1 || this.is_active === true;
-    }
-
-    // Получить контактную информацию
-    getContactInfo() {
-        const contacts = {};
-        if (this.telegram) contacts.telegram = this.telegram;
-        if (this.phone) contacts.phone = this.phone;
-        if (this.telegram_chat_id) contacts.telegram_linked = true;
-        return contacts;
     }
 
     // Получить публичные данные пользователя
@@ -427,10 +458,10 @@ class User {
             permissions: this.getPermissionsObject(),
             telegram: this.telegram,
             phone: this.phone,
+            vk: this.vk,
             telegram_linked: !!this.telegram_chat_id,
             is_active: this.is_active,
-            created_at: this.created_at,
-            role_name: this.getRoleName()
+            created_at: this.created_at
         };
     }
 
@@ -443,16 +474,26 @@ class User {
         }
     }
 
-    // Получить безопасные данные (без чувствительной информации)
-    toSafe() {
-        return {
-            id: this.id,
-            username: this.username,
-            role: this.role,
-            role_name: this.getRoleName(),
-            is_active: this.is_active,
-            telegram_linked: !!this.telegram_chat_id
-        };
+    // Проверить право доступа
+    hasPermission(permission) {
+        if (this.role === 'admin') return true;
+        
+        try {
+            const permissions = JSON.parse(this.permissions || '{}');
+            return permissions[permission] === true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    // Проверить роль
+    hasRole(role) {
+        return this.role === role;
+    }
+
+    // Проверить множественные роли
+    hasAnyRole(roles) {
+        return roles.includes(this.role);
     }
 }
 

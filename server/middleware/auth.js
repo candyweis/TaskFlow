@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-const JWT_SECRET = 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || 'taskflow-secret-key-2024-change-in-production';
 
 const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
@@ -16,22 +16,24 @@ const authenticateToken = async (req, res, next) => {
         
         // Загружаем актуальные данные пользователя из базы
         const user = await User.findById(decoded.id);
-        if (!user) {
-            return res.status(403).json({ error: 'User not found' });
+        if (!user || !user.is_active) {
+            return res.status(403).json({ error: 'User not found or inactive' });
         }
         
-        // Исправляем структуру req.user
+        // Правильная структура req.user
         req.user = {
             id: user.id,
             username: user.username,
             role: user.role,
-            permissions: user.permissions // Уже объект, не строка
+            permissions: typeof user.permissions === 'string' ? 
+                JSON.parse(user.permissions || '{}') : 
+                (user.permissions || {})
         };
         
         next();
     } catch (err) {
         console.error('Auth middleware error:', err);
-        return res.status(403).json({ error: 'Invalid token' });
+        return res.status(403).json({ error: 'Invalid or expired token' });
     }
 };
 

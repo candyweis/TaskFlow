@@ -3,19 +3,37 @@ class TaskFlowApp {
         this.currentUser = null;
         this.token = localStorage.getItem('taskflow_token');
         this.projects = [];
+        this.overleafProjects = [];
         this.tasks = [];
         this.users = [];
         this.colleagues = [];
-        this.overkillProjects = [];
         this.currentSection = 'projects';
         this.socket = null;
         this.currentEditingTaskId = null;
         this.currentCommentingTaskId = null;
+        this.currentViewingTaskId = null;
         this.filteredColleagues = [];
+        this.filteredUsers = [];
+        this.filteredAssignees = [];
         this.updateTaskStatusDebounce = new Map();
         this.isUpdatingTasks = false;
+        this.isMobile = this.detectMobileDevice();
+        this.taskStatuses = ['unassigned', 'in_progress', 'developed', 'review', 'deploy', 'done'];
+        this.statusNames = {
+            unassigned: 'Неразобранные',
+            in_progress: 'В работе', 
+            developed: 'Техарь',
+            review: 'На проверке',
+            deploy: 'Загружать',
+            done: 'Готово'
+        };
         
         this.init();
+    }
+
+    detectMobileDevice() {
+        return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+               window.innerWidth <= 768;
     }
 
     async init() {
@@ -29,7 +47,6 @@ class TaskFlowApp {
         
         this.socket.on('connect', () => {
             console.log('✅ Socket connected:', this.socket.id);
-            // Присоединяемся к общей комнате для получения всех обновлений
             this.socket.emit('join_general');
         });
 
@@ -37,18 +54,30 @@ class TaskFlowApp {
             console.log('❌ Socket disconnected');
         });
 
-        // ========== REAL-TIME ОБРАБОТЧИКИ ==========
+        // ========== REAL-TIME СОБЫТИЯ ==========
         
-        // Новый проект создан
+        // новый проект создан
         this.socket.on('project_created', (data) => {
-            console.log('📋 New project created:', data);
+            console.log('📁 New project created:', data);
             this.projects.push(data.project);
             this.populateSelects();
             this.renderProjects();
             this.showNotification(`Новый проект "${data.project.name}" создан пользователем ${data.createdBy.username}`, 'info');
         });
 
-        // Проект удален
+        // проект обновлен
+        this.socket.on('project_updated', (data) => {
+            console.log('📁 Project updated:', data);
+            const index = this.projects.findIndex(p => p.id === data.project.id);
+            if (index !== -1) {
+                this.projects[index] = data.project;
+            }
+            this.populateSelects();
+            this.renderProjects();
+            this.showNotification(`Проект "${data.project.name}" обновлен пользователем ${data.updatedBy.username}`, 'info');
+        });
+
+        // проект удален
         this.socket.on('project_deleted', (data) => {
             console.log('🗑️ Project deleted:', data);
             this.projects = this.projects.filter(p => p.id !== data.projectId);
@@ -57,41 +86,48 @@ class TaskFlowApp {
             this.showNotification(`Проект удален пользователем ${data.deletedBy.username}`, 'warning');
         });
 
-        // Новый overkill проект создан
-        this.socket.on('overkill_project_created', (data) => {
-            console.log('🚀 New overkill project created:', data);
-            this.overkillProjects.push(data.project);
+        // Overleaf проект создан
+        this.socket.on('overleaf_project_created', (data) => {
+            console.log('📁 New Overleaf project created:', data);
+            this.overleafProjects.push(data.project);
             this.populateSelects();
-            this.renderOverkillProjectsTable();
-            this.showNotification(`Новый проект Overkill "${data.project.name}" создан`, 'info');
+            this.showNotification(`Новый проект Overleaf "${data.project.name}" создан пользователем ${data.createdBy.username}`, 'info');
         });
 
-        // Overkill проект удален
-        this.socket.on('overkill_project_deleted', (data) => {
-            console.log('🗑️ Overkill project deleted:', data);
-            this.overkillProjects = this.overkillProjects.filter(p => p.id !== data.projectId);
+        // Overleaf проект обновлен
+        this.socket.on('overleaf_project_updated', (data) => {
+            console.log('📁 Overleaf project updated:', data);
+            const index = this.overleafProjects.findIndex(p => p.id === data.project.id);
+            if (index !== -1) {
+                this.overleafProjects[index] = data.project;
+            }
             this.populateSelects();
-            this.renderOverkillProjectsTable();
-            this.showNotification(`Проект Overkill удален`, 'warning');
+            this.showNotification(`Проект Overleaf "${data.project.name}" обновлен пользователем ${data.updatedBy.username}`, 'info');
         });
 
-        // Новая задача создана
+        // Overleaf проект удален
+        this.socket.on('overleaf_project_deleted', (data) => {
+            console.log('🗑️ Overleaf project deleted:', data);
+            this.overleafProjects = this.overleafProjects.filter(p => p.id !== data.projectId);
+            this.populateSelects();
+            this.showNotification(`Проект Overleaf удален пользователем ${data.deletedBy.username}`, 'warning');
+        });
+
+        // новая задача создана
         this.socket.on('task_created', (data) => {
-            console.log('📝 New task created:', data);
+            console.log('📋 New task created:', data);
             this.tasks.push(data.task);
             this.renderBoard();
             
-            // Показываем уведомление только если задача не создана текущим пользователем
             if (data.createdBy.id !== this.currentUser.id) {
                 this.showNotification(`Новая задача "${data.task.title}" создана пользователем ${data.createdBy.username}`, 'info');
             }
         });
 
-        // Статус задачи изменен
+        // статус задачи изменен
         this.socket.on('task_status_changed', (data) => {
             console.log('🔄 Task status changed:', data);
             
-            // Обновляем задачу в локальном массиве
             const taskIndex = this.tasks.findIndex(t => t.id === data.task.id);
             if (taskIndex !== -1) {
                 this.tasks[taskIndex] = data.task;
@@ -99,14 +135,13 @@ class TaskFlowApp {
             
             this.renderBoard();
             
-            // Показываем уведомление только если изменение не от текущего пользователя
             if (data.changedBy.id !== this.currentUser.id) {
                 const statusTexts = {
                     unassigned: 'Неразобранные',
                     in_progress: 'В работе',
-                    developed: 'Разработано',
+                    developed: 'Техарь',
                     review: 'На проверке',
-                    deploy: 'На заливе',
+                    deploy: 'Загружать',
                     done: 'Готово',
                     archived: 'Архивировано'
                 };
@@ -116,13 +151,17 @@ class TaskFlowApp {
                     'info'
                 );
             }
+
+            // обновляем модальное окно просмотра если оно открыто
+            if (this.currentViewingTaskId === data.task.id) {
+                this.showTaskDetails(data.task.id);
+            }
         });
 
-        // Назначения задачи изменены
+        // назначения задачи изменены
         this.socket.on('task_assignees_changed', (data) => {
             console.log('👥 Task assignees changed:', data);
             
-            // Обновляем задачу в локальном массиве
             const taskIndex = this.tasks.findIndex(t => t.id === data.task.id);
             if (taskIndex !== -1) {
                 this.tasks[taskIndex] = data.task;
@@ -130,7 +169,6 @@ class TaskFlowApp {
             
             this.renderBoard();
             
-            // Показываем уведомление если текущий пользователь добавлен/удален
             const wasAssigned = data.oldAssignees.includes(this.currentUser.id);
             const isAssigned = data.newAssignees.includes(this.currentUser.id);
             
@@ -141,9 +179,14 @@ class TaskFlowApp {
             } else if (data.changedBy.id !== this.currentUser.id) {
                 this.showNotification(`Участники задачи "${data.task.title}" изменены`, 'info');
             }
+
+            // обновляем модальное окно просмотра если оно открыто
+            if (this.currentViewingTaskId === data.task.id) {
+                this.showTaskDetails(data.task.id);
+            }
         });
 
-        // Задача удалена
+        // задача удалена
         this.socket.on('task_deleted', (data) => {
             console.log('🗑️ Task deleted:', data);
             this.tasks = this.tasks.filter(t => t.id !== data.taskId);
@@ -152,18 +195,22 @@ class TaskFlowApp {
             if (data.deletedBy.id !== this.currentUser.id) {
                 this.showNotification(`Задача удалена пользователем ${data.deletedBy.username}`, 'warning');
             }
+
+            // закрываем модальное окно если была удалена просматриваемая задача
+            if (this.currentViewingTaskId === data.taskId) {
+                this.closeModal('taskViewModal');
+                this.currentViewingTaskId = null;
+            }
         });
 
-        // Новый комментарий к задаче
+        // новый комментарий к задаче
         this.socket.on('task_comment_added', (data) => {
             console.log('💬 Task comment added:', data);
             
-            // Если открыто окно комментариев для этой задачи, обновляем его
             if (this.currentCommentingTaskId === data.taskId && data.comment.user_id !== this.currentUser.id) {
                 this.loadTaskComments(data.taskId);
             }
             
-            // Показываем уведомление если комментарий не от текущего пользователя
             if (data.comment.user_id !== this.currentUser.id) {
                 const task = this.tasks.find(t => t.id === data.taskId);
                 const taskTitle = task ? task.title : 'задаче';
@@ -171,14 +218,19 @@ class TaskFlowApp {
             }
         });
 
-        // Активность пользователя (опционально)
-        this.socket.on('user_activity', (data) => {
-            // Можно показывать кто сейчас онлайн, кто что делает и т.д.
-            console.log('👤 User activity:', data);
+        // разделение задачи
+        this.socket.on('task_split', (data) => {
+            console.log('✂️ Task split:', data);
+            // перезагружаем задачи для обновления
+            this.loadTasks().then(() => {
+                this.renderBoard();
+                if (data.splitBy.id !== this.currentUser.id) {
+                    this.showNotification(`Задача разделена на подзадачи пользователем ${data.splitBy.username}`, 'info');
+                }
+            });
         });
     }
 
-    // Отправить активность пользователя
     sendUserActivity(action, details = {}) {
         if (this.socket && this.socket.connected) {
             this.socket.emit('user_activity', {
@@ -192,14 +244,11 @@ class TaskFlowApp {
         }
     }
 
-    // Debounced функция для обновления статуса задач
     debounceUpdateTaskStatus(taskId, newStatus, delay = 300) {
-        // Очищаем предыдущий таймер для этой задачи
         if (this.updateTaskStatusDebounce.has(taskId)) {
             clearTimeout(this.updateTaskStatusDebounce.get(taskId));
         }
 
-        // Устанавливаем новый таймер
         const timeoutId = setTimeout(() => {
             this.executeUpdateTaskStatus(taskId, newStatus);
             this.updateTaskStatusDebounce.delete(taskId);
@@ -211,6 +260,14 @@ class TaskFlowApp {
     async executeUpdateTaskStatus(taskId, newStatus) {
         if (this.isUpdatingTasks) {
             console.log('Update already in progress, skipping...');
+            return;
+        }
+
+        // Показываем учет времени при переносе в ЛЮБУЮ колонку (кроме исходной)
+        const task = this.tasks.find(t => t.id === taskId);
+        if (task && task.status !== newStatus && window.timeTracking) {
+            console.log('🕐 Showing time tracking for task status change:', { from: task.status, to: newStatus });
+            window.timeTracking.show(taskId, task, newStatus);
             return;
         }
 
@@ -226,7 +283,6 @@ class TaskFlowApp {
             });
 
             if (response.ok) {
-                // Локально обновляем задачу
                 const taskIndex = this.tasks.findIndex(t => t.id === taskId);
                 if (taskIndex !== -1) {
                     this.tasks[taskIndex].status = newStatus;
@@ -234,7 +290,6 @@ class TaskFlowApp {
                 
                 this.renderBoard();
                 
-                // Отправляем активность пользователя
                 this.sendUserActivity('move_task', {
                     taskId,
                     newStatus,
@@ -244,7 +299,6 @@ class TaskFlowApp {
             } else {
                 const error = await response.json();
                 this.showNotification(error.error || 'Ошибка обновления статуса', 'error');
-                // При ошибке перезагружаем задачи для восстановления корректного состояния
                 await this.loadTasks();
                 this.renderBoard();
             }
@@ -257,42 +311,74 @@ class TaskFlowApp {
         }
     }
 
+
+
     bindEvents() {
-        // Авторизация
+        // авторизация
         document.getElementById('authForm').addEventListener('submit', (e) => this.handleAuth(e));
         
-        // Навигация
+        // навигация
         document.querySelectorAll('.nav-btn').forEach(btn => {
             btn.addEventListener('click', () => this.switchSection(btn.dataset.section));
         });
         
-        // Кнопки
+        // кнопки
         document.getElementById('logoutBtn').addEventListener('click', () => this.logout());
         document.getElementById('addProjectBtn').addEventListener('click', () => this.showModal('projectModal'));
         document.getElementById('addTaskBtn').addEventListener('click', () => this.showModal('taskModal'));
-        document.getElementById('addOverkillProjectBtn').addEventListener('click', () => this.showModal('overkillProjectModal'));
         document.getElementById('viewArchivedBtn').addEventListener('click', () => this.showArchivedTasks());
         
-        // Поиск и фильтрация коллег
+        // поиск и фильтрация коллег
         document.getElementById('searchColleagues').addEventListener('input', (e) => this.filterColleagues());
         document.getElementById('roleFilter').addEventListener('change', (e) => this.filterColleagues());
         
-        // Формы
+        // поиск пользователей в модальных окнах
+        const userSearchInput = document.getElementById('userSearchInput');
+        if (userSearchInput) {
+            userSearchInput.addEventListener('input', (e) => this.filterUsers());
+        }
+        
+        const taskUserSearchInput = document.getElementById('taskUserSearchInput');
+        if (taskUserSearchInput) {
+            taskUserSearchInput.addEventListener('input', (e) => this.filterTaskUsers());
+        }
+        
+        // формы
         document.getElementById('projectForm').addEventListener('submit', (e) => this.createProject(e));
-        document.getElementById('overkillProjectForm').addEventListener('submit', (e) => this.createOverkillProject(e));
         document.getElementById('taskForm').addEventListener('submit', (e) => this.createTask(e));
         document.getElementById('saveTaskAssignees').addEventListener('click', () => this.saveTaskAssignees());
         document.getElementById('addTaskComment').addEventListener('click', () => this.addTaskComment());
         
-        // Закрытие модальных окон
+        // кнопки в модальном окне просмотра задачи
+        document.getElementById('taskEditAssignees').addEventListener('click', () => this.manageTaskAssignees(this.currentViewingTaskId));
+        document.getElementById('taskViewComments').addEventListener('click', () => this.showTaskComments(this.currentViewingTaskId));
+        document.getElementById('taskArchiveBtn').addEventListener('click', () => this.archiveTask(this.currentViewingTaskId));
+        document.getElementById('taskDeleteBtn').addEventListener('click', () => this.deleteTask(this.currentViewingTaskId));
+        
+        // табы в формах
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => this.switchTab(e));
+        });
+        
+        // закрытие модальных окон
         document.querySelectorAll('.close').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const modal = e.target.closest('.modal');
-                this.closeModal(modal.id);
+                e.preventDefault();
+                const modalId = btn.getAttribute('data-modal') || btn.closest('.modal').id;
+                this.closeModal(modalId);
             });
         });
 
-        // Клик вне модального окна
+        // кнопки закрытия через data-close-modal
+        document.querySelectorAll('[data-close-modal]').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const modalId = btn.getAttribute('data-close-modal');
+                this.closeModal(modalId);
+            });
+        });
+
+        // клик вне модального окна
         document.querySelectorAll('.modal').forEach(modal => {
             modal.addEventListener('click', (e) => {
                 if (e.target === modal) {
@@ -301,8 +387,53 @@ class TaskFlowApp {
             });
         });
         
-        // Фильтр проектов
+        // фильтр проектов
         document.getElementById('projectFilter').addEventListener('change', () => this.renderBoard());
+
+        // установка минимальной даты дедлайна на текущее время
+        this.setMinDeadlineDate();
+
+        // обновляем при изменении размера окна
+        window.addEventListener('resize', () => {
+            const wasMobile = this.isMobile;
+            this.isMobile = this.detectMobileDevice();
+            
+            // если изменился тип устройства, перерисовываем доску
+            if (wasMobile !== this.isMobile) {
+                this.renderBoard();
+            }
+        });
+    }
+
+    switchTab(e) {
+        e.preventDefault();
+        const btn = e.target;
+        const container = btn.closest('.assignees-container, .assignees-management');
+        const tabName = btn.dataset.tab;
+        
+        // обновляем активные кнопки
+        container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        // показываем соответствующий контент
+        container.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.toggle('active', content.id === tabName + '-tab');
+        });
+    }
+
+    setMinDeadlineDate() {
+        const deadlineInput = document.getElementById('taskDeadline');
+        if (deadlineInput) {
+            const now = new Date();
+            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+            deadlineInput.min = now.toISOString().slice(0, 16);
+            
+            // устанавливаем значение по умолчанию через неделю
+            const defaultDate = new Date();
+            defaultDate.setDate(defaultDate.getDate() + 7);
+            defaultDate.setMinutes(defaultDate.getMinutes() - defaultDate.getTimezoneOffset());
+            deadlineInput.value = defaultDate.toISOString().slice(0, 16);
+        }
     }
 
     async checkAuth() {
@@ -353,14 +484,13 @@ class TaskFlowApp {
         roleElement.textContent = this.getRoleText(this.currentUser.role);
         roleElement.className = `role-badge role-${this.currentUser.role}`;
         
-        // Показываем админку только админам
         if (this.currentUser.role === 'admin') {
             document.getElementById('adminLink').style.display = 'flex';
         }
         
         this.updateUI();
         this.loadData();
-        this.initSocket(); // Инициализируем сокет после авторизации
+        this.initSocket();
     }
 
     getRoleText(role) {
@@ -375,7 +505,6 @@ class TaskFlowApp {
     updateUI() {
         const permissions = this.currentUser.permissions;
         
-        // Показываем кнопку добавления проектов для пользователей с правами на создание проектов или задач
         const canCreateProjects = permissions.canManageProjects || permissions.canManageTasks || this.currentUser.role === 'admin';
         document.getElementById('addProjectBtn').style.display = canCreateProjects ? 'flex' : 'none';
         
@@ -446,12 +575,10 @@ class TaskFlowApp {
     switchSection(section) {
         this.currentSection = section;
         
-        // Обновляем активные кнопки
         document.querySelectorAll('.nav-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.section === section);
         });
         
-        // Показываем нужную секцию
         document.querySelectorAll('.content-section').forEach(sec => {
             sec.style.display = sec.id === section + 'Section' ? 'block' : 'none';
         });
@@ -468,6 +595,7 @@ class TaskFlowApp {
     async loadData() {
         await Promise.all([
             this.loadProjects(),
+            this.loadOverleafProjects(),
             this.loadTasks(),
             this.loadUsers()
         ]);
@@ -478,13 +606,8 @@ class TaskFlowApp {
     }
 
     async loadColleaguesData() {
-        await Promise.all([
-            this.loadColleagues(),
-            this.loadOverkillProjects()
-        ]);
-        
+        await this.loadColleagues();
         this.renderColleagues();
-        this.renderOverkillProjectsTable();
     }
 
     async loadProjects() {
@@ -495,6 +618,17 @@ class TaskFlowApp {
             }
         } catch (error) {
             console.error('Error loading projects:', error);
+        }
+    }
+
+    async loadOverleafProjects() {
+        try {
+            const response = await this.apiCall('/api/overleaf-projects');
+            if (response.ok) {
+                this.overleafProjects = await response.json();
+            }
+        } catch (error) {
+            console.error('Error loading overleaf projects:', error);
         }
     }
 
@@ -514,9 +648,11 @@ class TaskFlowApp {
             const response = await this.apiCall('/api/users/workers');
             if (response.ok) {
                 this.users = await response.json();
+                this.filteredUsers = [...this.users];
+                this.filteredAssignees = [...this.users];
             }
         } catch (error) {
-            // Если нет прав, ничего не делаем
+            // если нет прав, ничего не делаем
         }
     }
 
@@ -529,17 +665,6 @@ class TaskFlowApp {
             }
         } catch (error) {
             console.error('Error loading colleagues:', error);
-        }
-    }
-
-    async loadOverkillProjects() {
-        try {
-            const response = await this.apiCall('/api/overkill-projects');
-            if (response.ok) {
-                this.overkillProjects = await response.json();
-            }
-        } catch (error) {
-            console.error('Error loading overkill projects:', error);
         }
     }
 
@@ -556,6 +681,28 @@ class TaskFlowApp {
         });
         
         this.renderColleagues();
+    }
+
+    filterUsers() {
+        const searchTerm = document.getElementById('userSearchInput').value.toLowerCase();
+        const task = this.tasks.find(t => t.id === this.currentEditingTaskId);
+        
+        const availableUsers = this.users.filter(u => 
+            (!task || !task.assignees || !task.assignees.includes(u.id)) &&
+            u.username.toLowerCase().includes(searchTerm)
+        );
+        
+        this.renderAvailableUsers(availableUsers);
+    }
+
+    filterTaskUsers() {
+        const searchTerm = document.getElementById('taskUserSearchInput').value.toLowerCase();
+        
+        this.filteredAssignees = this.users.filter(u => 
+            u.username.toLowerCase().includes(searchTerm)
+        );
+        
+        this.renderTaskAssignees();
     }
 
     renderColleagues() {
@@ -579,9 +726,9 @@ class TaskFlowApp {
             
             const permissions = colleague.permissions || {};
             const skills = [];
-            if (permissions.canDevelop) skills.push('Разработка');
+            if (permissions.canDevelop) skills.push('Техарь');
             if (permissions.canReview) skills.push('Проверка');
-            if (permissions.canDeploy) skills.push('Деплой');
+            if (permissions.canDeploy) skills.push('Загружать');
             if (permissions.canManageProjects) skills.push('Управление проектами');
             if (permissions.canManageTasks) skills.push('Управление задачами');
             if (permissions.canManageUsers) skills.push('Управление пользователями');
@@ -611,7 +758,15 @@ class TaskFlowApp {
                             <a href="tel:${colleague.phone}">${colleague.phone}</a>
                         </div>
                     ` : ''}
-                    ${!colleague.telegram && !colleague.phone ? `
+                    ${colleague.vk ? `
+                        <div class="contact-item">
+                            <i class="fab fa-vk"></i>
+                            <a href="https://vk.com/${colleague.vk.replace('@', '').replace('vk.com/', '')}" target="_blank">
+                                ${colleague.vk}
+                            </a>
+                        </div>
+                    ` : ''}
+                    ${!colleague.telegram && !colleague.phone && !colleague.vk ? `
                         <div class="contact-item no-contacts">
                             <i class="fas fa-exclamation-circle"></i>
                             <span>Контакты не указаны</span>
@@ -630,58 +785,8 @@ class TaskFlowApp {
         });
     }
 
-    renderOverkillProjectsTable() {
-        const tbody = document.getElementById('overkillProjectsTableBody');
-        tbody.innerHTML = '';
-        
-        if (this.overkillProjects.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="5" class="empty-cell">
-                        <div class="empty-state">
-                            <i class="fas fa-external-link-alt"></i>
-                            <p>Проекты Overkill не найдены</p>
-                        </div>
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-        
-        this.overkillProjects.forEach(project => {
-            const row = document.createElement('tr');
-            
-            row.innerHTML = `
-                <td>
-                    <strong>${this.escapeHtml(project.name)}</strong>
-                </td>
-                <td class="description-cell">
-                    ${project.description ? this.escapeHtml(project.description) : '<em>Без описания</em>'}
-                </td>
-                <td>${this.escapeHtml(project.created_by_name || 'Неизвестен')}</td>
-                <td class="center">
-                    ${project.project_link ? `
-                        <a href="${project.project_link}" target="_blank" class="btn btn-sm btn-primary">
-                            <i class="fas fa-external-link-alt"></i>
-                            Открыть
-                        </a>
-                    ` : '<em>Нет ссылки</em>'}
-                </td>
-                <td class="center">
-                    <div style="display: flex; gap: 5px; justify-content: center;">
-                        <button class="btn btn-sm btn-danger" onclick="app.deleteOverkillProject(${project.id})" title="Удалить">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </td>
-            `;
-            
-            tbody.appendChild(row);
-        });
-    }
-
     populateSelects() {
-        // Заполняем селект проектов
+        // заполняем селект проектов
         const selects = ['taskProject', 'projectFilter'];
         selects.forEach(selectId => {
             const select = document.getElementById(selectId);
@@ -702,30 +807,34 @@ class TaskFlowApp {
             select.value = currentValue;
         });
 
-        // Заполняем селект overkill проектов
-        const overkillSelect = document.getElementById('taskOverkillProject');
-        if (overkillSelect) {
-            const currentValue = overkillSelect.value;
-            overkillSelect.innerHTML = '<option value="">Выберите проект Overkill (опционально)</option>';
+        // заполняем селект Overleaf проектов
+        const overleafSelect = document.getElementById('taskOverleafProject');
+        if (overleafSelect) {
+            const currentValue = overleafSelect.value;
+            overleafSelect.innerHTML = '<option value="">Выберите проект Overleaf (опционально)</option>';
             
-            this.overkillProjects.forEach(project => {
+            this.overleafProjects.forEach(project => {
                 const option = document.createElement('option');
                 option.value = project.id;
                 option.textContent = project.name;
-                overkillSelect.appendChild(option);
+                overleafSelect.appendChild(option);
             });
             
-            overkillSelect.value = currentValue;
+            overleafSelect.value = currentValue;
         }
         
         this.populateAssignees();
     }
 
     populateAssignees() {
+        this.renderTaskAssignees();
+    }
+
+    renderTaskAssignees() {
         const assigneesList = document.getElementById('assigneesList');
         if (!assigneesList) return;
         
-        const workers = this.users.filter(u => u.role === 'worker' || u.role === 'manager');
+        const workers = this.filteredAssignees.filter(u => u.role === 'worker' || u.role === 'manager');
         
         if (workers.length === 0) {
             assigneesList.innerHTML = '<p class="text-center">Нет доступных исполнителей</p>';
@@ -740,23 +849,67 @@ class TaskFlowApp {
             
             const permissions = user.permissions || {};
             const skills = [];
-            if (permissions.canDevelop) skills.push('Разработка');
+            if (permissions.canDevelop) skills.push('Техарь');
             if (permissions.canReview) skills.push('Проверка');
-            if (permissions.canDeploy) skills.push('Деплой');
+            if (permissions.canDeploy) skills.push('Загружать');
             
             item.innerHTML = `
-                <input type="checkbox" class="assignee-checkbox" value="${user.id}">
-                <div>
-                    <strong>${user.username}</strong>
-                    <div style="font-size: 12px; color: #666;">${skills.join(', ') || 'Базовые права'}</div>
+                <div class="assignee-checkbox-container">
+                    <input type="checkbox" class="assignee-checkbox" value="${user.id}">
+                </div>
+                <div class="assignee-info">
+                    <div class="assignee-avatar">${user.username.charAt(0).toUpperCase()}</div>
+                    <div class="assignee-details">
+                        <strong>${user.username}</strong>
+                        <div class="assignee-skills">${skills.join(', ') || 'Базовые права'}</div>
+                    </div>
                 </div>
             `;
             assigneesList.appendChild(item);
         });
     }
 
+    renderAvailableUsers(users) {
+        const availableList = document.getElementById('availableAssigneesList');
+        availableList.innerHTML = '';
+        
+        users.forEach(user => {
+            const item = document.createElement('div');
+            item.className = 'assignee-item-with-role';
+            
+            const permissions = user.permissions || {};
+            const skills = [];
+            if (permissions.canDevelop) skills.push('Техарь');
+            if (permissions.canReview) skills.push('Проверка');
+            if (permissions.canDeploy) skills.push('Загружать');
+            
+            item.innerHTML = `
+                <div class="assignee-checkbox-container">
+                    <input type="checkbox" class="available-assignee-checkbox" value="${user.id}">
+                </div>
+                <div class="assignee-info">
+                    <div class="assignee-avatar">${user.username.charAt(0).toUpperCase()}</div>
+                    <div class="assignee-details">
+                        <strong>${user.username}</strong>
+                        <div class="assignee-skills">${skills.join(', ') || 'Базовые права'}</div>
+                    </div>
+                </div>
+                <div class="role-selector">
+                    <select class="user-role-select" data-user-id="${user.id}">
+                        <option value="">Без роли</option>
+                        <option value="tech">Техарь</option>
+                        <option value="review">Проверка</option>
+                        <option value="deploy">Загружать</option>
+                    </select>
+                </div>
+            `;
+            availableList.appendChild(item);
+        });
+    }
+
     renderProjects() {
         const container = document.getElementById('projectsList');
+        container.className = 'projects-grid';
         container.innerHTML = '';
         
         if (this.projects.length === 0) {
@@ -777,12 +930,14 @@ class TaskFlowApp {
             const card = document.createElement('div');
             card.className = 'project-card';
             
-            // Добавляем кнопки действий для менеджеров
             const permissions = this.currentUser.permissions;
             const canManageProjects = permissions.canManageProjects || permissions.canManageTasks || this.currentUser.role === 'admin';
             
             const actionsHtml = canManageProjects ? `
                 <div class="project-actions">
+                    <button class="btn btn-sm btn-secondary" onclick="app.editProject(${project.id})" title="Редактировать проект">
+                        <i class="fas fa-edit"></i>
+                    </button>
                     <button class="btn btn-sm btn-danger" onclick="app.deleteProject(${project.id})" title="Удалить проект">
                         <i class="fas fa-trash"></i>
                     </button>
@@ -832,7 +987,6 @@ class TaskFlowApp {
                 });
             }
             
-            // Обновляем счетчик
             const column = container.closest('.kanban-column');
             const countElement = column.querySelector('.task-count');
             if (countElement) {
@@ -855,58 +1009,136 @@ class TaskFlowApp {
         else if (daysDiff <= 2) deadlineClass = 'warning';
         
         const card = document.createElement('div');
-        card.className = 'task-card';
-        card.draggable = true;
+        card.className = `task-card ${this.isMobile ? 'mobile-task-card' : ''}`;
+        card.draggable = !this.isMobile; // отключаем drag на мобильных
         card.dataset.taskId = task.id;
         
-        // Создаем аватары исполнителей
+        // клик по карточке для открытия деталей
+        card.addEventListener('click', (e) => {
+            if (!e.target.closest('.task-actions') && 
+                !e.target.closest('.mobile-task-controls') && 
+                !e.target.closest('button') &&
+                !e.target.closest('.task-context-menu')) {
+                this.showTaskDetails(task.id);
+            }
+        });
+        
+        // создаем аватары исполнителей
         const assigneesHtml = (task.assignees || []).map(assigneeId => {
             const user = this.users.find(u => u.id === assigneeId);
             return `<div class="assignee-avatar" title="${user?.username || 'Неизвестный пользователь'}">${user?.username.charAt(0).toUpperCase() || '?'}</div>`;
         }).join('');
         
-        // Кнопки управления
+        // кнопки управления
         const isAssigned = task.assignees && task.assignees.includes(this.currentUser.id);
         const canManage = this.currentUser.permissions.canManageTasks || this.currentUser.role === 'admin' || this.currentUser.role === 'manager';
         
+        // отображение сложности
+        const complexityTexts = {
+            easy: '🟢 Легкая',
+            medium: '🟡 Средняя',
+            hard: '🟠 Сложная',
+            expert: '🔴 Эксперт'
+        };
+        
+        const complexityHtml = task.complexity ? `
+            <div class="task-complexity">
+                <span class="complexity-badge complexity-${task.complexity}">
+                    ${complexityTexts[task.complexity] || task.complexity}
+                </span>
+            </div>
+        ` : '';
+
+        // информация о подзадачах, если это родительская задача
+        let subtasksHtml = '';
+        if (task.subtasks_count && task.subtasks_count > 0) {
+            subtasksHtml = `
+                <div class="task-subtasks-info">
+                    📝 ${task.subtasks_count} подзадач
+                </div>
+            `;
+        }
+
+        // информация о родительской задаче, если это подзадача
+        let parentHtml = '';
+        if (task.is_subtask && task.parent_task_title) {
+            parentHtml = `
+                <div class="task-parent-info">
+                    🔗 Подзадача: ${task.parent_task_title}
+                </div>
+            `;
+        }
+
+        // контекстное меню
+        const contextMenuHtml = `
+            <div class="task-context-menu">
+                <button class="context-menu-btn" onclick="app.showTaskContextMenu(event, ${task.id})">
+                    ⋮
+                </button>
+                <div class="context-dropdown" id="context-${task.id}">
+                    ${canManage ? `
+                        <button class="dropdown-item" onclick="app.splitTask(${task.id}); app.hideContextMenu(${task.id})">
+                            ✂️ Разделить задачу
+                        </button>
+                    ` : ''}
+                    ${task.status === 'done' ? `
+                        <button class="dropdown-item" onclick="app.showTimeTracking(${task.id}); app.hideContextMenu(${task.id})">
+                            ⏱️ Добавить время
+                        </button>
+                    ` : ''}
+                    <button class="dropdown-item" onclick="app.showTaskDetails(${task.id}); app.hideContextMenu(${task.id})">
+                        👁️ Просмотреть
+                    </button>
+                    ${canManage ? `
+                        <button class="dropdown-item" onclick="app.deleteTask(${task.id}); app.hideContextMenu(${task.id})">
+                            🗑️ Удалить
+                        </button>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+        
         const actionsHtml = `
-            <div class="task-actions" style="position: absolute; top: 8px; right: 8px; opacity: 0; transition: opacity 0.3s; display: flex; gap: 4px;">
+            <div class="task-actions" style="${this.isMobile ? 'position: static; opacity: 1; display: flex; justify-content: center; margin-top: 8px; background: rgba(255,255,255,0.9); border-radius: 4px; padding: 4px;' : 'position: absolute; top: 8px; right: 8px; opacity: 0; transition: opacity 0.3s; display: flex; gap: 4px;'}">
                 ${canManage ? `
-                    <button class="btn btn-sm btn-danger" onclick="app.deleteTask(${task.id})" title="Удалить задачу">
+                    <button class="btn btn-sm btn-danger" onclick="app.deleteTask(${task.id}); event.stopPropagation();" title="Удалить задачу">
                         <i class="fas fa-times"></i>
                     </button>
                 ` : ''}
-                <button class="btn btn-sm btn-secondary" onclick="app.manageTaskAssignees(${task.id})" title="Управление участниками">
+                <button class="btn btn-sm btn-secondary" onclick="app.manageTaskAssignees(${task.id}); event.stopPropagation();" title="Управление участниками">
                     <i class="fas fa-users"></i>
                 </button>
                 ${(isAssigned || canManage) ? `
-                    <button class="btn btn-sm btn-info" onclick="app.showTaskComments(${task.id})" title="Комментарии">
+                    <button class="btn btn-sm btn-info" onclick="app.showTaskComments(${task.id}); event.stopPropagation();" title="Комментарии">
                         <i class="fas fa-comments"></i>
                     </button>
                 ` : ''}
                 ${task.status === 'done' ? `
-                    <button class="btn btn-sm btn-warning" onclick="app.archiveTask(${task.id})" title="Архивировать">
+                    <button class="btn btn-sm btn-warning" onclick="app.archiveTask(${task.id}); event.stopPropagation();" title="Архивировать">
                         <i class="fas fa-archive"></i>
                     </button>
                 ` : ''}
             </div>
         `;
         
-        // Определяем какую ссылку показывать
+        // мобильные стрелочки для перемещения
+        const mobileControlsHtml = this.isMobile ? this.createMobileTaskControls(task) : '';
+        
+        // определяем какую ссылку показывать
         let linkHtml = '';
-        if (task.overkill_project_name && task.overkill_project_link) {
+        if (task.overleaf_project_name && task.overleaf_project_link) {
             linkHtml = `
                 <div class="task-project-link">
-                    <a href="${task.overkill_project_link}" target="_blank">
+                    <a href="${task.overleaf_project_link}" target="_blank" onclick="event.stopPropagation();">
                         <i class="fas fa-external-link-alt"></i>
-                        Overkill: ${this.escapeHtml(task.overkill_project_name)}
+                        Overleaf: ${this.escapeHtml(task.overleaf_project_name)}
                     </a>
                 </div>
             `;
         } else if (task.project_link) {
             linkHtml = `
                 <div class="task-project-link">
-                    <a href="${task.project_link}" target="_blank">
+                    <a href="${task.project_link}" target="_blank" onclick="event.stopPropagation();">
                         <i class="fas fa-external-link-alt"></i>
                         Ссылка на ресурс
                     </a>
@@ -915,15 +1147,19 @@ class TaskFlowApp {
         }
         
         card.innerHTML = `
+            ${contextMenuHtml}
             ${actionsHtml}
             <div class="task-title">${this.escapeHtml(task.title)}</div>
             ${task.goal ? `<div class="task-goal"><i class="fas fa-bullseye"></i> ${this.escapeHtml(task.goal)}</div>` : ''}
+            ${complexityHtml}
+            ${parentHtml}
+            ${subtasksHtml}
             <div class="task-description">${this.escapeHtml(task.description)}</div>
             ${linkHtml}
             <div class="task-meta">
                 <div class="task-deadline ${deadlineClass}">
                     <i class="fas fa-clock"></i>
-                    ${deadline.toLocaleDateString('ru-RU')}
+                    ${deadline.toLocaleString('ru-RU')}
                 </div>
                 <div class="priority-badge priority-${task.priority}">
                     ${this.getPriorityText(task.priority)}
@@ -933,20 +1169,284 @@ class TaskFlowApp {
                 <div class="task-project">${this.escapeHtml(project?.name || 'Без проекта')}</div>
                 <div class="task-assignees">${assigneesHtml}</div>
             </div>
+            ${mobileControlsHtml}
         `;
         
-        // Показываем кнопки при наведении
-        card.addEventListener('mouseenter', () => {
-            const actions = card.querySelector('.task-actions');
-            if (actions) actions.style.opacity = '1';
-        });
-        
-        card.addEventListener('mouseleave', () => {
-            const actions = card.querySelector('.task-actions');
-            if (actions) actions.style.opacity = '0';
-        });
+        // показываем кнопки при наведении только на десктопе
+        if (!this.isMobile) {
+            card.addEventListener('mouseenter', () => {
+                const actions = card.querySelector('.task-actions');
+                if (actions) actions.style.opacity = '1';
+            });
+            
+            card.addEventListener('mouseleave', () => {
+                const actions = card.querySelector('.task-actions');
+                if (actions) actions.style.opacity = '0';
+            });
+        }
         
         return card;
+    }
+
+    showTaskContextMenu(event, taskId) {
+        event.stopPropagation();
+        
+        // скрываем все открытые меню
+        document.querySelectorAll('.context-dropdown').forEach(menu => {
+            menu.classList.remove('show');
+        });
+        
+        // показываем нужное меню
+        const menu = document.getElementById(`context-${taskId}`);
+        if (menu) {
+            menu.classList.add('show');
+            
+            // закрываем меню при клике вне его
+            setTimeout(() => {
+                document.addEventListener('click', () => this.hideContextMenu(taskId), { once: true });
+            }, 100);
+        }
+    }
+
+    hideContextMenu(taskId) {
+        const menu = document.getElementById(`context-${taskId}`);
+        if (menu) {
+            menu.classList.remove('show');
+        }
+    }
+
+    showTimeTracking(taskId, taskData = null) {
+        if (!taskData) {
+            taskData = this.tasks.find(t => t.id === taskId);
+        }
+        
+        if (!taskData) {
+            this.showNotification('Задача не найдена', 'error');
+            return;
+        }
+        
+        if (window.timeTracking) {
+            window.timeTracking.show(taskId, taskData);
+        }
+    }
+
+    splitTask(taskId) {
+        const taskData = this.tasks.find(t => t.id === taskId);
+        
+        if (!taskData) {
+            this.showNotification('Задача не найдена', 'error');
+            return;
+        }
+        
+        if (window.taskSplitting) {
+            window.taskSplitting.show(taskId, taskData);
+        }
+    }
+
+    createMobileTaskControls(task) {
+        const currentStatusIndex = this.taskStatuses.indexOf(task.status);
+        const canMoveLeft = currentStatusIndex > 0;
+        const canMoveRight = currentStatusIndex < this.taskStatuses.length - 1;
+        
+        const canChangeStatus = this.currentUser.permissions.canManageTasks || 
+                               this.currentUser.role === 'admin' ||
+                               (task.assignees && task.assignees.includes(this.currentUser.id));
+        
+        if (!canChangeStatus) {
+            return `
+                <div class="mobile-task-controls">
+                    <div class="mobile-task-status">
+                        <i class="fas fa-info-circle"></i>
+                        Статус: ${this.statusNames[task.status]}
+                    </div>
+                </div>
+            `;
+        }
+        
+        return `
+            <div class="mobile-task-controls">
+                <div class="mobile-task-status">
+                    <i class="fas fa-exchange-alt"></i>
+                    ${this.statusNames[task.status]}
+                </div>
+                <div class="mobile-task-arrows">
+                    <button class="mobile-arrow-btn" 
+                            onclick="app.moveTaskMobile(${task.id}, 'left'); event.stopPropagation();"
+                            ${!canMoveLeft ? 'disabled' : ''}
+                            title="Переместить назад">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button class="mobile-arrow-btn"
+                            onclick="app.moveTaskMobile(${task.id}, 'right'); event.stopPropagation();"
+                            ${!canMoveRight ? 'disabled' : ''}
+                            title="Переместить вперед">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    async moveTaskMobile(taskId, direction) {
+        const task = this.tasks.find(t => t.id === taskId);
+        if (!task) return;
+        
+        const currentStatusIndex = this.taskStatuses.indexOf(task.status);
+        let newStatusIndex;
+        
+        if (direction === 'left' && currentStatusIndex > 0) {
+            newStatusIndex = currentStatusIndex - 1;
+        } else if (direction === 'right' && currentStatusIndex < this.taskStatuses.length - 1) {
+            newStatusIndex = currentStatusIndex + 1;
+        } else {
+            return; // нельзя переместить
+        }
+        
+        const newStatus = this.taskStatuses[newStatusIndex];
+        
+        // показываем анимацию нажатия
+        const button = event.target.closest('.mobile-arrow-btn');
+        if (button) {
+            button.style.transform = 'scale(0.9)';
+            setTimeout(() => {
+                button.style.transform = 'scale(1)';
+            }, 150);
+        }
+        
+        try {
+            const response = await this.apiCall(`/api/tasks/${taskId}/status`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ status: newStatus })
+            });
+
+            if (response.ok) {
+                // обновляем локально
+                const taskIndex = this.tasks.findIndex(t => t.id === taskId);
+                if (taskIndex !== -1) {
+                    this.tasks[taskIndex].status = newStatus;
+                }
+                
+                this.renderBoard();
+                
+                // показываем уведомление
+                this.showNotification(`Задача перемещена в "${this.statusNames[newStatus]}"`, 'success');
+                
+            } else {
+                const error = await response.json();
+                this.showNotification(error.error || 'Ошибка перемещения задачи', 'error');
+            }
+        } catch (error) {
+            this.showNotification('Ошибка соединения с сервером', 'error');
+        }
+    }
+
+    async showTaskDetails(taskId) {
+        try {
+            const response = await this.apiCall(`/api/tasks/${taskId}`);
+            if (!response.ok) return;
+            
+            const task = await response.json();
+            this.currentViewingTaskId = taskId;
+            
+            // заполняем модальное окно
+            document.getElementById('taskViewTitle').textContent = `Детали задачи #${task.id}`;
+            document.getElementById('taskViewName').textContent = task.title;
+            document.getElementById('taskViewPriority').innerHTML = `<span class="priority-badge priority-${task.priority}">${this.getPriorityText(task.priority)}</span>`;
+            
+            // цель
+            const goalGroup = document.getElementById('taskViewGoalGroup');
+            if (task.goal) {
+                goalGroup.style.display = 'block';
+                document.getElementById('taskViewGoal').textContent = task.goal;
+            } else {
+                goalGroup.style.display = 'none';
+            }
+            
+            document.getElementById('taskViewDescription').textContent = task.description || 'Описание отсутствует';
+            
+            // проект
+            const projectGroup = document.getElementById('taskViewProjectGroup');
+            if (task.project_name) {
+                projectGroup.style.display = 'block';
+                document.getElementById('taskViewProject').textContent = task.project_name;
+            } else {
+                projectGroup.style.display = 'none';
+            }
+            
+            // Overleaf проект
+            const overleafGroup = document.getElementById('taskViewOverleafGroup');
+            if (task.overleaf_project_name) {
+                overleafGroup.style.display = 'block';
+                const overleafContent = task.overleaf_project_link ? 
+                    `<a href="${task.overleaf_project_link}" target="_blank">${task.overleaf_project_name}</a>` :
+                    task.overleaf_project_name;
+                document.getElementById('taskViewOverleaf').innerHTML = overleafContent;
+            } else {
+                overleafGroup.style.display = 'none';
+            }
+            
+            // ссылка
+            const linkGroup = document.getElementById('taskViewLinkGroup');
+            if (task.project_link) {
+                linkGroup.style.display = 'block';
+                document.getElementById('taskViewLink').innerHTML = `<a href="${task.project_link}" target="_blank">${task.project_link}</a>`;
+            } else {
+                linkGroup.style.display = 'none';
+            }
+            
+            document.getElementById('taskViewDeadline').textContent = new Date(task.deadline).toLocaleString('ru-RU');
+            
+            const statusTexts = {
+                unassigned: 'Неразобранные',
+                in_progress: 'В работе',
+                developed: 'Техарь',
+                review: 'На проверке',
+                deploy: 'Загружать',
+                done: 'Готово',
+                archived: 'Архивировано'
+            };
+            document.getElementById('taskViewStatus').innerHTML = `<span class="status-badge status-${task.status}">${statusTexts[task.status]}</span>`;
+            
+            // исполнители
+            const assigneesHtml = (task.assignees || []).map(assigneeId => {
+                const user = this.users.find(u => u.id === assigneeId);
+                return `<span class="assignee-tag">${user ? user.username : 'Неизвестный'}</span>`;
+            }).join('');
+            document.getElementById('taskViewAssignees').innerHTML = assigneesHtml || 'Не назначено';
+            
+            document.getElementById('taskViewCreator').textContent = task.created_by_name || 'Неизвестно';
+            
+            // кнопки действий
+            const permissions = this.currentUser.permissions;
+            const isAssigned = task.assignees && task.assignees.includes(this.currentUser.id);
+            const canManage = permissions.canManageTasks || this.currentUser.role === 'admin' || this.currentUser.role === 'manager';
+            
+            document.getElementById('taskArchiveBtn').style.display = (task.status === 'done' && (canManage || isAssigned)) ? 'block' : 'none';
+            document.getElementById('taskDeleteBtn').style.display = canManage ? 'block' : 'none';
+            
+            this.showModal('taskViewModal');
+        } catch (error) {
+            console.error('Error loading task details:', error);
+            this.showNotification('Ошибка загрузки деталей задачи', 'error');
+        }
+    }
+
+    editProject(projectId) {
+        const project = this.projects.find(p => p.id === projectId);
+        if (!project) return;
+        
+        document.getElementById('projectName').value = project.name;
+        document.getElementById('projectDescription').value = project.description || '';
+        
+        // меняем заголовок и кнопку
+        document.querySelector('#projectModal .modal-header h3').textContent = 'Редактировать проект';
+        const form = document.getElementById('projectForm');
+        form.dataset.editingId = projectId;
+        
+        this.showModal('projectModal');
     }
 
     manageTaskAssignees(taskId) {
@@ -954,10 +1454,15 @@ class TaskFlowApp {
         const task = this.tasks.find(t => t.id === taskId);
         if (!task) return;
         
-        // Заполняем модальное окно
         document.getElementById('taskAssigneesTitle').textContent = task.title;
         
-        // Текущие участники
+        // очищаем поиск
+        const searchInput = document.getElementById('userSearchInput');
+        if (searchInput) {
+            searchInput.value = '';
+        }
+        
+        // текущие участники
         const currentList = document.getElementById('currentAssigneesList');
         currentList.innerHTML = '';
         
@@ -983,32 +1488,16 @@ class TaskFlowApp {
             currentList.innerHTML = '<p class="text-center">Нет назначенных участников</p>';
         }
         
-        // Доступные участники
-        const availableList = document.getElementById('availableAssigneesList');
-        availableList.innerHTML = '';
-        
+        // доступные участники
         const availableUsers = this.users.filter(u => 
             !task.assignees || !task.assignees.includes(u.id)
         );
+        this.renderAvailableUsers(availableUsers);
         
-        availableUsers.forEach(user => {
-            const item = document.createElement('div');
-            item.className = 'assignee-item';
-            
-            const permissions = user.permissions || {};
-            const skills = [];
-            if (permissions.canDevelop) skills.push('Разработка');
-            if (permissions.canReview) skills.push('Проверка');
-            if (permissions.canDeploy) skills.push('Деплой');
-            
-            item.innerHTML = `
-                <input type="checkbox" class="available-assignee-checkbox" value="${user.id}">
-                <div>
-                    <strong>${user.username}</strong>
-                    <div style="font-size: 12px; color: #666;">${skills.join(', ') || 'Базовые права'}</div>
-                </div>
-            `;
-            availableList.appendChild(item);
+        // заполняем назначения по ролям
+        const roleAssignments = task.role_assignments || {};
+        document.querySelectorAll('.role-assignment-checkbox').forEach(checkbox => {
+            checkbox.checked = roleAssignments[checkbox.value] || false;
         });
         
         this.showModal('taskAssigneesModal');
@@ -1019,21 +1508,38 @@ class TaskFlowApp {
         if (task && task.assignees) {
             task.assignees = task.assignees.filter(id => id !== assigneeId);
         }
-        this.manageTaskAssignees(this.currentEditingTaskId); // Обновляем отображение
+        this.manageTaskAssignees(this.currentEditingTaskId);
     }
 
     async saveTaskAssignees() {
         const task = this.tasks.find(t => t.id === this.currentEditingTaskId);
         if (!task) return;
         
-        // Получаем текущих участников
+        // получаем текущих участников
         let currentAssignees = task.assignees || [];
         
-        // Добавляем новых участников
-        const newAssignees = Array.from(document.querySelectorAll('.available-assignee-checkbox:checked'))
-            .map(cb => parseInt(cb.value));
+        // получаем новых участников с их ролями
+        const newAssignees = [];
+        const userRoles = {};
+        
+        document.querySelectorAll('.available-assignee-checkbox:checked').forEach(checkbox => {
+            const userId = parseInt(checkbox.value);
+            const roleSelect = document.querySelector(`.user-role-select[data-user-id="${userId}"]`);
+            const role = roleSelect ? roleSelect.value : '';
+            
+            newAssignees.push(userId);
+            if (role) {
+                userRoles[userId] = role;
+            }
+        });
         
         const allAssignees = [...currentAssignees, ...newAssignees];
+        
+        // получаем назначения по ролям
+        const roleAssignments = {};
+        document.querySelectorAll('.role-assignment-checkbox').forEach(checkbox => {
+            roleAssignments[checkbox.value] = checkbox.checked;
+        });
         
         try {
             const response = await this.apiCall(`/api/tasks/${this.currentEditingTaskId}/assign`, {
@@ -1041,13 +1547,16 @@ class TaskFlowApp {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ user_ids: allAssignees })
+                body: JSON.stringify({ 
+                    user_ids: allAssignees,
+                    role_assignments: roleAssignments,
+                    user_roles: userRoles
+                })
             });
 
             if (response.ok) {
                 this.closeModal('taskAssigneesModal');
                 this.showNotification('Участники обновлены', 'success');
-                // Real-time обновление произойдет автоматически через socket
             } else {
                 const error = await response.json();
                 this.showNotification(error.error || 'Ошибка обновления участников', 'error');
@@ -1107,7 +1616,6 @@ class TaskFlowApp {
             container.appendChild(item);
         });
         
-        // Прокручиваем к последнему комментарию
         container.scrollTop = container.scrollHeight;
     }
 
@@ -1128,7 +1636,6 @@ class TaskFlowApp {
 
             if (response.ok) {
                 document.getElementById('newTaskComment').value = '';
-                // Real-time обновление произойдет автоматически через socket
             } else {
                 const error = await response.json();
                 this.showNotification(error.error || 'Ошибка добавления комментария', 'error');
@@ -1150,7 +1657,8 @@ class TaskFlowApp {
 
             if (response.ok) {
                 this.showNotification('Задача архивирована', 'success');
-                // Real-time обновление произойдет автоматически через socket
+                this.closeModal('taskViewModal');
+                this.currentViewingTaskId = null;
             } else {
                 const error = await response.json();
                 this.showNotification(error.error || 'Ошибка архивирования задачи', 'error');
@@ -1167,9 +1675,13 @@ class TaskFlowApp {
                 const archivedTasks = await response.json();
                 this.renderArchivedTasks(archivedTasks);
                 this.showModal('archiveModal');
+            } else {
+                const error = await response.json();
+                this.showNotification(error.error || 'Ошибка загрузки архивированных задач', 'error');
             }
         } catch (error) {
             console.error('Error loading archived tasks:', error);
+            this.showNotification('Ошибка соединения с сервером', 'error');
         }
     }
 
@@ -1192,7 +1704,7 @@ class TaskFlowApp {
             item.className = 'archived-task-item';
             
             const project = this.projects.find(p => p.id === task.project_id);
-            const deadline = new Date(task.deadline).toLocaleDateString('ru-RU');
+            const deadline = new Date(task.deadline).toLocaleString('ru-RU');
             
             item.innerHTML = `
                 <div class="archived-task-header">
@@ -1220,9 +1732,8 @@ class TaskFlowApp {
             });
 
             if (response.ok) {
-                this.showArchivedTasks(); // Обновляем список архива
+                this.showArchivedTasks();
                 this.showNotification('Задача восстановлена', 'success');
-                // Real-time обновление произойдет автоматически через socket
             } else {
                 const error = await response.json();
                 this.showNotification(error.error || 'Ошибка восстановления задачи', 'error');
@@ -1242,6 +1753,12 @@ class TaskFlowApp {
     }
 
     setupDragAndDrop() {
+        if (this.isMobile) {
+            // на мобильных отключаем drag and drop
+            return;
+        }
+        
+        // существующий код drag and drop для десктопа
         const cards = document.querySelectorAll('.task-card');
         const columns = document.querySelectorAll('.column-content');
         
@@ -1249,7 +1766,6 @@ class TaskFlowApp {
             const taskId = parseInt(card.dataset.taskId);
             const task = this.tasks.find(t => t.id === taskId);
             
-            // Проверяем, может ли пользователь перетаскивать эту задачу
             const canDrag = this.canUserDragTask(task);
             card.draggable = canDrag;
             
@@ -1289,19 +1805,16 @@ class TaskFlowApp {
                 const taskId = parseInt(e.dataTransfer.getData('text/plain'));
                 const newStatus = column.id.replace('-tasks', '');
                 
-                // Используем debounced версию
                 this.debounceUpdateTaskStatus(taskId, newStatus);
             });
         });
     }
 
     canUserDragTask(task) {
-        // Админы и менеджеры могут перетаскивать любые задачи
         if (this.currentUser.permissions.canManageTasks || this.currentUser.role === 'admin') {
             return true;
         }
         
-        // Пользователи могут перетаскивать только назначенные им задачи
         return task.assignees && task.assignees.includes(this.currentUser.id);
     }
 
@@ -1317,7 +1830,6 @@ class TaskFlowApp {
 
             if (response.ok) {
                 this.showNotification('Проект удален', 'success');
-                // Real-time обновление произойдет автоматически через socket
             } else {
                 const error = await response.json();
                 this.showNotification(error.error || 'Ошибка удаления проекта', 'error');
@@ -1339,7 +1851,10 @@ class TaskFlowApp {
 
             if (response.ok) {
                 this.showNotification('Задача удалена', 'success');
-                // Real-time обновление произойдет автоматически через socket
+                if (this.currentViewingTaskId === taskId) {
+                    this.closeModal('taskViewModal');
+                    this.currentViewingTaskId = null;
+                }
             } else {
                 const error = await response.json();
                 this.showNotification(error.error || 'Ошибка удаления задачи', 'error');
@@ -1354,82 +1869,40 @@ class TaskFlowApp {
         
         const name = document.getElementById('projectName').value;
         const description = document.getElementById('projectDescription').value;
+        const editingId = e.target.dataset.editingId;
         
         try {
-            const response = await this.apiCall('/api/projects', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ name, description })
-            });
+            let response;
+            if (editingId) {
+                // обновляем существующий проект
+                response = await this.apiCall(`/api/projects/${editingId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name, description })
+                });
+            } else {
+                // создаем новый проект
+                response = await this.apiCall('/api/projects', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name, description })
+                });
+            }
 
             if (response.ok) {
                 this.closeModal('projectModal');
-                this.showNotification('Проект создан успешно!', 'success');
+                this.showNotification(editingId ? 'Проект обновлен успешно!' : 'Проект создан успешно!', 'success');
                 
-                // Очищаем форму
                 document.getElementById('projectForm').reset();
-                
-                // Real-time обновление произойдет автоматически через socket
+                delete e.target.dataset.editingId;
+                document.querySelector('#projectModal .modal-header h3').textContent = 'Добавить проект';
             } else {
                 const error = await response.json();
-                this.showNotification(error.error || 'Ошибка создания проекта', 'error');
-            }
-        } catch (error) {
-            this.showNotification('Ошибка соединения с сервером', 'error');
-        }
-    }
-
-    async createOverkillProject(e) {
-        e.preventDefault();
-        
-        const name = document.getElementById('overkillProjectName').value;
-        const description = document.getElementById('overkillProjectDescription').value;
-        const project_link = document.getElementById('overkillProjectLink').value;
-        
-        try {
-            const response = await this.apiCall('/api/overkill-projects', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ name, description, project_link })
-            });
-
-            if (response.ok) {
-                this.closeModal('overkillProjectModal');
-                this.showNotification('Проект Overkill создан успешно!', 'success');
-                
-                // Очищаем форму
-                document.getElementById('overkillProjectForm').reset();
-                
-                // Real-time обновление произойдет автоматически через socket
-            } else {
-                const error = await response.json();
-                this.showNotification(error.error || 'Ошибка создания проекта Overkill', 'error');
-            }
-        } catch (error) {
-            this.showNotification('Ошибка соединения с сервером', 'error');
-        }
-    }
-
-    async deleteOverkillProject(projectId) {
-        if (!confirm('Вы уверены, что хотите удалить этот проект Overkill?')) {
-            return;
-        }
-        
-        try {
-            const response = await this.apiCall(`/api/overkill-projects/${projectId}`, {
-                method: 'DELETE'
-            });
-
-            if (response.ok) {
-                this.showNotification('Проект Overkill удален', 'success');
-                // Real-time обновление произойдет автоматически через socket
-            } else {
-                const error = await response.json();
-                this.showNotification(error.error || 'Ошибка удаления проекта Overkill', 'error');
+                this.showNotification(error.error || 'Ошибка сохранения проекта', 'error');
             }
         } catch (error) {
             this.showNotification('Ошибка соединения с сервером', 'error');
@@ -1443,13 +1916,21 @@ class TaskFlowApp {
         const goal = document.getElementById('taskGoal').value;
         const description = document.getElementById('taskDescription').value;
         const project_id = document.getElementById('taskProject').value ? parseInt(document.getElementById('taskProject').value) : null;
-        const overkill_project_id = document.getElementById('taskOverkillProject').value ? parseInt(document.getElementById('taskOverkillProject').value) : null;
+        const overleaf_project_id = document.getElementById('taskOverleafProject').value ? parseInt(document.getElementById('taskOverleafProject').value) : null;
         const project_link = document.getElementById('taskProjectLink').value;
         const deadline = document.getElementById('taskDeadline').value;
         const priority = document.getElementById('taskPriority').value;
         
+        // получаем назначения пользователей
         const assignees = Array.from(document.querySelectorAll('.assignee-checkbox:checked'))
             .map(cb => parseInt(cb.value));
+        
+        // получаем назначения по ролям
+        const role_assignments = {
+            tech: document.getElementById('assignTechRole').checked,
+            review: document.getElementById('assignReviewRole').checked,
+            deploy: document.getElementById('assignDeployRole').checked
+        };
         
         try {
             const response = await this.apiCall('/api/tasks', {
@@ -1462,11 +1943,12 @@ class TaskFlowApp {
                     goal,
                     description,
                     project_id,
-                    overkill_project_id,
+                    overleaf_project_id,
                     project_link,
                     deadline,
                     priority,
-                    assignees
+                    assignees,
+                    role_assignments
                 })
             });
 
@@ -1474,11 +1956,10 @@ class TaskFlowApp {
                 this.closeModal('taskModal');
                 this.showNotification('Задача создана успешно!', 'success');
                 
-                // Очищаем форму
                 document.getElementById('taskForm').reset();
                 document.querySelectorAll('.assignee-checkbox').forEach(cb => cb.checked = false);
-                
-                // Real-time обновление произойдет автоматически через socket
+                document.querySelectorAll('#taskForm input[type="checkbox"]').forEach(cb => cb.checked = false);
+                this.setMinDeadlineDate();
             } else {
                 const error = await response.json();
                 this.showNotification(error.error || 'Ошибка создания задачи', 'error');
@@ -1492,7 +1973,6 @@ class TaskFlowApp {
         const modal = document.getElementById(modalId);
         modal.classList.add('show');
         
-        // Фокус на первое поле ввода
         setTimeout(() => {
             const firstInput = modal.querySelector('input, select, textarea');
             if (firstInput) firstInput.focus();
@@ -1501,6 +1981,18 @@ class TaskFlowApp {
 
     closeModal(modalId) {
         document.getElementById(modalId).classList.remove('show');
+        
+        // сброс состояния для проектной формы
+        if (modalId === 'projectModal') {
+            const form = document.getElementById('projectForm');
+            delete form.dataset.editingId;
+            document.querySelector('#projectModal .modal-header h3').textContent = 'Добавить проект';
+        }
+        
+        // сброс состояния для просмотра задач
+        if (modalId === 'taskViewModal') {
+            this.currentViewingTaskId = null;
+        }
     }
 
     showNotification(message, type = 'success') {
@@ -1521,10 +2013,8 @@ class TaskFlowApp {
         
         document.body.appendChild(notification);
         
-        // Показываем уведомление
         setTimeout(() => notification.classList.add('show'), 100);
         
-        // Скрываем и удаляем
         setTimeout(() => {
             notification.classList.remove('show');
             setTimeout(() => notification.remove(), 300);
@@ -1550,14 +2040,7 @@ class TaskFlowApp {
     }
 }
 
-// Глобальные функции для использования в HTML
-window.closeModal = function(modalId) {
-    if (window.app) {
-        window.app.closeModal(modalId);
-    }
-};
-
-// Инициализация приложения
+// инициализация приложения
 document.addEventListener('DOMContentLoaded', () => {
     window.app = new TaskFlowApp();
 });

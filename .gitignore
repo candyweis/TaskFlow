@@ -1,2 +1,9 @@
+# Database files
 *.db
+*.sqlite
+*.sqlite3
+server/database/
+server/*.db
 server/taskflow.db
+node_modules/
+
